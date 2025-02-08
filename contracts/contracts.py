@@ -104,7 +104,32 @@ async def get_my_contract_bids(
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)):
     '''Returns a list of all contracts the current user has placed a bid on.'''
-    return
+    user = auth.get_current_user(request)['sub']
+
+    async with database.AsyncSessionLocalFactory() as session:
+        user_bids = await session.execute(
+                select(database.Bid).where(
+                database.Bid.bidderID == user
+                )
+            )
+        user_bids: List[database.Bid] = user_bids.scalars().all()
+        bidded_contract_ids = [bid.contractID for bid in user_bids]
+
+        # query contracts table with contract IDs in bidded_contract_ids
+        bidded_contracts = await session.execute(
+            select(database.Contract).where(
+            database.Contract.contractID.in_(bidded_contract_ids)
+            )
+        )
+        bidded_contracts: List[database.Contract] = bidded_contracts.scalars().all()
+        
+        compact_bids = [
+            {
+            "contractID": contract.contractID,
+            "title": contract.title,
+            } for contract in bidded_contracts
+        ]
+    return compact_bids
 
 @router.post("/create-contract", tags=["Contracts"])
 async def create_contract(
