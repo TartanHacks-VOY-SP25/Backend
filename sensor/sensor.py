@@ -13,13 +13,6 @@ from database import database
 
 router = APIRouter()
 
-
-# setup two fastapi routes, one to register a sensor
-# one to provide the sensor a post endpoint
-# the register sensor endpoint needs to validate the token, get the user (reference contracts.py and auth.py)
-# and then create an entry in the Sensor table. The ownerID will be the user's id, and the sensorID will be the one from the user input
-# if the sensor id is invalid, return an error
-
 @router.post("/register_sensor", tags=["Sensor"])
 async def register_sensor(
     sensor: str, 
