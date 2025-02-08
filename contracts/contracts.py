@@ -11,8 +11,11 @@ router = APIRouter()
 async def get_open_contracts(
     request: Request, 
     response: Response,
-    auth: None=Depends(auth.check_and_renew_access_token)):
-    '''Returns a list of open contracts.'''
+    _auth: None=Depends(auth.check_and_renew_access_token)):
+    '''
+    Returns a list of open contracts in a compacted form.
+    Compacted == just ID and title.
+    '''
     async with database.AsyncSessionLocalFactory() as session:
         open_contracts = await session.execute(
             select(database.Contract).where(
@@ -33,16 +36,46 @@ async def get_open_contracts(
 async def get_my_contracts(
     request: Request, 
     response: Response,
-    auth: None=Depends(auth.check_and_renew_access_token)
+    _auth: None=Depends(auth.check_and_renew_access_token)
     ):
-    '''Returns a list of all contracts affiliated with the current user.'''
+    '''
+    Returns a list of all contracts affiliated with the current user.
+    This is both contracts proposed by the user, as well as contracts bidded on by the user.
+    '''
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        user_contracts = await session.execute(
+            select(database.Contract).where(
+                (database.Contract.proposerID == user) 
+            )
+        )
+
+        # get users bids, and then use embedded contractID to get the contracts those bids are associated with
+        user_bids = await session.execute(
+            select(database.Bid).where(
+            database.Bid.bidderID == user
+            )
+        )
+        user_bids: List[database.Bid] = user_bids.scalars().all()
+        bid_contract_ids = [bid.contractID for bid in user_bids]
+
+        bid_contracts = await session.execute(
+            select(database.Contract).where(
+            database.Contract.contractID.in_(bid_contract_ids)
+            )
+        )
+        bid_contracts: List[database.Contract] = bid_contracts.scalars().all()
+    user_contracts = user_contracts.scalars().all()
+    user_contracts.extend(bid_contracts)
+    return user_contracts
+
     return
 
 @router.get("/my-contract-requests", tags=["Contracts"])
 async def get_my_contract_requests(
     request: Request, 
     response: Response,
-    auth: None=Depends(auth.check_and_renew_access_token)):
+    _auth: None=Depends(auth.check_and_renew_access_token)):
     '''Returns a list of all contract requests affiliated with the current user.'''
     return
 
@@ -50,7 +83,7 @@ async def get_my_contract_requests(
 async def get_my_contract_bids(
     request: Request, 
     response: Response,
-    auth: None=Depends(auth.check_and_renew_access_token)):
+    _auth: None=Depends(auth.check_and_renew_access_token)):
     '''Returns a list of all contracts the current user has placed a bid on.'''
     return
 
@@ -58,7 +91,7 @@ async def get_my_contract_bids(
 async def create_contract(
     request: Request, 
     response: Response,
-    auth: None=Depends(auth.check_and_renew_access_token)):
+    _auth: None=Depends(auth.check_and_renew_access_token)):
     '''Creates a new contract.'''
     return
 
@@ -67,7 +100,7 @@ async def get_contract(
     contract_id: int, 
     request: Request, 
     response: Response,
-    auth: None=Depends(auth.check_and_renew_access_token)
+    _auth: None=Depends(auth.check_and_renew_access_token)
     ):
     '''Returns the details of a specific contract.'''
     return
@@ -77,7 +110,7 @@ async def update_contract(
     contract_id: int,
     request: Request, 
     response: Response, 
-    auth: None=Depends(auth.check_and_renew_access_token)):
+    _auth: None=Depends(auth.check_and_renew_access_token)):
     '''Tries to update an existing contract.'''
     return
 
@@ -86,7 +119,7 @@ async def delete_contract(
     contract_id: int,
     request: Request, 
     response: Response, 
-    auth: None=Depends(auth.check_and_renew_access_token)):
+    _auth: None=Depends(auth.check_and_renew_access_token)):
     '''Deletes an existing contract.'''
     return
 
@@ -97,7 +130,7 @@ async def get_contract_bid(
     bid_id: int, 
     request: Request, 
     response: Response, 
-    auth: None=Depends(auth.check_and_renew_access_token)
+    _auth: None=Depends(auth.check_and_renew_access_token)
     ):
     '''Returns the details of a specific contract bid.'''
     return
@@ -107,7 +140,7 @@ async def create_contract_bid(
     contract_id: int,
     request: Request, 
     response: Response, 
-    auth: None=Depends(auth.check_and_renew_access_token)
+    _auth: None=Depends(auth.check_and_renew_access_token)
     ):
     '''Creates a new contract bid.'''
     return
@@ -118,7 +151,7 @@ async def create_contract_bid(
     bid_id: int,
     request: Request, 
     response: Response, 
-    auth: None=Depends(auth.check_and_renew_access_token)
+    _auth: None=Depends(auth.check_and_renew_access_token)
     ):
     '''Deletes a contract bid.'''
     return
