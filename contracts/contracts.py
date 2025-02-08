@@ -2,7 +2,9 @@ from fastapi import APIRouter, Response, Request, Depends
 from auth import auth
 from database import database
 from sqlalchemy.future import select
+from sqlalchemy import DateTime
 from typing import List
+from datetime import datetime
 
 router = APIRouter()
 
@@ -122,7 +124,7 @@ async def get_my_contract_bids(
             )
         )
         bidded_contracts: List[database.Contract] = bidded_contracts.scalars().all()
-        
+
         compact_bids = [
             {
             "contractID": contract.contractID,
@@ -135,9 +137,33 @@ async def get_my_contract_bids(
 async def create_contract(
     request: Request, 
     response: Response,
+    biddingExpiryTime: str,
+    bidSelectionExpiryTime: str,
+    title: str,
+    desc: str,
     _auth: None=Depends(auth.check_and_renew_access_token)):
-    '''Creates a new contract.'''
-    return
+    '''
+    Creates a new contract.
+    Expects timestamps in "%Y-%m-%dT%H:%M:%S" format.
+    '''
+    
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        bidding_expiry_time = datetime.strptime(biddingExpiryTime, "%Y-%m-%dT%H:%M:%S")
+        bid_selection_expiry_time = datetime.strptime(bidSelectionExpiryTime, "%Y-%m-%dT%H:%M:%S")
+
+        new_contract = database.Contract(
+            proposerID=user,
+            biddingExpiryTime=bidding_expiry_time,
+            biddingSelectionExpiryTime=bid_selection_expiry_time,
+            title=title,
+            description=desc,
+            contractStatus=database.ContractStatus.OPEN
+        )
+        session.add(new_contract)
+        await session.commit()
+        await session.refresh(new_contract)
+    return {"contractID": new_contract.contractID, "title": new_contract.title}
 
 @router.get("/{contract_id}", tags=["Contracts"])
 async def get_contract(
@@ -146,7 +172,7 @@ async def get_contract(
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)
     ):
-    '''Returns the details of a specific contract.'''
+    '''Returns all details of a specific contract.'''
     return
 
 @router.post("/{contract_id}/update-contract", tags=["Contracts"])
@@ -190,7 +216,7 @@ async def create_contract_bid(
     return
 
 @router.post("/{contract_id}/{bid_id}/delete-contract-bid", tags=["Bids"])
-async def create_contract_bid(
+async def delete_contract_bid(
     contract_id: int,
     bid_id: int,
     request: Request, 
