@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from xrpl.clients import JsonRpcClient
 from xrpl.models import EscrowCreate
-from xrpl.transaction import submit_and_wait
+from xrpl.asyncio.transaction import submit_and_wait
 from xrpl.utils import datetime_to_ripple_time, xrp_to_drops
 from xrpl.wallet import Wallet
 from xrpl.constants import CryptoAlgorithm
@@ -9,7 +9,7 @@ from os import urandom
 from cryptoconditions import PreimageSha256
 
 
-def create_escrow(expire_time: datetime, source_acc_num: str, dest_acc_num : str, payment_amt : list):
+def create_escrow(source_acc_num: str, dest_acc_num : str, payment_amt : list, expire_time=datetime.now() + timedelta(days=5)):
     # Connect to Server
     client = JsonRpcClient("https://s.altnet.rippletest.net:51234") # Connect to client
     sequences = []
