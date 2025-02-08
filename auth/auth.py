@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
@@ -6,9 +7,11 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 
 # Constants
+# TODO: Replace with environment variables
 SECRET_KEY = "testkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1
+
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -16,7 +19,6 @@ router = APIRouter()
 
 # TODO: Fake in-memory user storage for now (replace with DB later)
 db_users = {}
-
 
 # Convenience helpers
 class User(BaseModel):
@@ -43,7 +45,8 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 def check_and_renew_access_token(request: Request, response: Response):
     '''
-    Checks access token for validity, and renews if it is within a minute of expiry.
+    Checks access token for validity, and renews if it is within timeout.
+    Otherwise, raises an exception.
     Should run first on all protected routes.
     '''
     token = request.cookies.get("access_token")
@@ -51,7 +54,8 @@ def check_and_renew_access_token(request: Request, response: Response):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if datetime.now(timezone.utc) > datetime.fromtimestamp(payload["exp"], timezone.utc) - timedelta(minutes=1):
+        if datetime.now(timezone.utc) < datetime.fromtimestamp(payload["exp"], timezone.utc):
+            # renew token within timeout
             access_token = create_access_token({"sub": payload["sub"]})
             response.set_cookie(
                 key="access_token",
@@ -60,6 +64,9 @@ def check_and_renew_access_token(request: Request, response: Response):
                 secure=True,
                 samesite="Lax"
             )
+        if datetime.now(timezone.utc > datetime.fromtimestamp(payload["exp"], timezone.utc)):
+            # token expired
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Access Token has expired")
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     return payload
@@ -67,14 +74,12 @@ def check_and_renew_access_token(request: Request, response: Response):
 
 def get_current_user(request: Request):
     '''Retrieves the current user from the request.'''
+    check_and_renew_access_token(request, Response)
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]) 
-        if datetime.now(timezone.utc) > datetime.fromtimestamp(payload["exp"], timezone.utc):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Access Token has expired")
-        
         return payload
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
