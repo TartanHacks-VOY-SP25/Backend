@@ -1,52 +1,13 @@
-from auth import auth
 import os
 from fastapi import APIRouter, Response, Request, Depends
 from pydantic import BaseModel
 from datetime import datetime, timezone
 from enum import Enum
+from auth import auth
+from database import database
 
 
 router = APIRouter()
-
-# TODO: Fake in-memory user storage for now (replace with DB calls later)
-db_contracts = {}
-db_bids = {}
-
-# DB Parsing Models
-class ContractStatus(str, Enum):
-    OPEN = "open"
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-
-class Contract(BaseModel):
-    contractID: int
-    proposerID: str
-    biddingExpiryTime: datetime
-    bidSelectionExpiryTime: datetime
-    contractAwardTime: datetime
-    contractCompletionTime: datetime
-    contractStatus: ContractStatus
-    title: str
-    description: str
-
-class BidStatus(str, Enum):
-    OPEN = "open"
-    ACCEPTED = "accepted"
-    REJECTED = "rejected"
-
-class Bid(BaseModel):
-    bidID: int
-    bidderID: str
-    contractID: str
-    basePrice: float
-    incentives: list[float]
-    bidStatus: BidStatus
-    bidTime: datetime
-    sensorID: str
-
-
-
 # Routes
 @router.get("/open-contracts")
 def get_open_contracts(

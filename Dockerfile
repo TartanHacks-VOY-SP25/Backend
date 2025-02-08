@@ -11,7 +11,10 @@ RUN apk add --no-cache \
     git \
     bash \
     curl \
-    openssh
+    openssh \
+    gcc \
+    musl-dev \
+    postgresql-dev
 
 # Copy local code to the container image.
 COPY . .
