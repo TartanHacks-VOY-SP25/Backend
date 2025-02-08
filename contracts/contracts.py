@@ -5,6 +5,7 @@ from sqlalchemy.future import select
 from sqlalchemy import DateTime
 from typing import List
 from datetime import datetime
+from datetime import timezone
 
 router = APIRouter()
 
@@ -219,7 +220,10 @@ async def update_contract(
     request: Request, 
     response: Response, 
     _auth: None=Depends(auth.check_and_renew_access_token)):
-    '''Tries to update an existing contract.'''
+    '''
+    Tries to update an existing contract.
+    NOT YET IMPLEMENTED
+    '''
     return
 
 @router.post("/{contract_id}/delete-contract", tags=["Contracts"])
@@ -228,7 +232,10 @@ async def delete_contract(
     request: Request, 
     response: Response, 
     _auth: None=Depends(auth.check_and_renew_access_token)):
-    '''Deletes an existing contract.'''
+    '''
+    Deletes an existing contract.
+    NOT YET IMPLEMENTED
+    '''
     return
 
 
@@ -241,17 +248,72 @@ async def get_contract_bid(
     _auth: None=Depends(auth.check_and_renew_access_token)
     ):
     '''Returns the details of a specific contract bid.'''
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        bid = await session.execute(
+            select(database.Bid).where(
+            database.Bid.contractID == contract_id,
+            database.Bid.bidID == bid_id
+            )
+        )
+        bid: database.Bid = bid.scalars().first()
+        if not bid:
+            response.status_code = 404
+            return {"detail": "Bid not found"}
+
+        return {
+            "bidID": bid.bidID,
+            "contractID": bid.contractID,
+            "bidderID": bid.bidderID,
+            "floorPrice": bid.bidFloorPrice,
+            "incentives": bid.incentives,
+            "timestamp": bid.bidTime
+        }
     return
 
 @router.post("/{contract_id}/create-contract-bid", tags=["Bids"])
 async def create_contract_bid(
     contract_id: int,
+    base_price: int,
+    incentives: str,
+    sensorid: int,
     request: Request, 
     response: Response, 
     _auth: None=Depends(auth.check_and_renew_access_token)
     ):
-    '''Creates a new contract bid.'''
-    return
+    '''
+    Creates a new contract bid and places it on the specified contract id.
+    Requires sensor id to be specified.
+    Only works if contract status is open.
+    Incentives should be formatted as INT-INT-INT-INT.
+    '''
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        contract = await session.execute(
+            select(database.Contract).where(
+                database.Contract.contractID == contract_id,
+                database.Contract.contractStatus == database.ContractStatus.OPEN
+            )
+        )
+        contract: database.Contract = contract.scalars().first()
+        if not contract:
+            response.status_code = 404
+            return {"detail": "Contract not found or not open"}
+
+        new_bid = database.Bid(
+            bidderID=user,
+            contractID=contract_id,
+            bidFloorPrice=base_price,
+            incentives=incentives,
+            bidStatus=database.BidStatus.OPEN,
+            sensorID = str(sensorid), 
+            #TODO: validation needs to happen that the sensor belongs to the user but skip for now
+            bidTime=datetime.now()
+        )
+        session.add(new_bid)
+        await session.commit()
+        await session.refresh(new_bid)
+    return {"bidID": new_bid.bidID, "contractID": new_bid.contractID}
 
 @router.post("/{contract_id}/{bid_id}/delete-contract-bid", tags=["Bids"])
 async def delete_contract_bid(
@@ -261,5 +323,8 @@ async def delete_contract_bid(
     response: Response, 
     _auth: None=Depends(auth.check_and_renew_access_token)
     ):
-    '''Deletes a contract bid.'''
+    '''
+    Deletes a contract bid.
+    '''
+
     return
