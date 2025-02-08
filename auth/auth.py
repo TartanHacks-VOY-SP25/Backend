@@ -86,14 +86,14 @@ def get_current_user(request: Request):
 async def register(username: str, password: str):
     '''Registers a new user.'''
     async with database.AsyncSessionLocalFactory() as session:
-        user_ids = await session.execute(select(database.User.userid))
+        user_ids = await session.execute(select(database.User.userID))
         user_ids: List[database.User] = user_ids.scalars().all()
         if username in user_ids:
             raise HTTPException(status_code=400, detail="User already exists")
         else:
             # create a new user and commit it to the database
             new_user = database.User(
-                userid=username,
+                userID=username,
                 hashed_password=hash_password(password)
             )
             session.add(new_user)
@@ -107,7 +107,7 @@ async def login(user: str, password: str, response: Response):
     No HTTP request data to read.
     '''
     async with database.AsyncSessionLocalFactory() as session:
-        user = await session.execute(select(database.User).where(database.User.userid == user))
+        user = await session.execute(select(database.User).where(database.User.userID == user))
         user:database.User = user.scalars().first()
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -115,7 +115,7 @@ async def login(user: str, password: str, response: Response):
     if (not user.hashed_password or not verify_password(password, user.hashed_password)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     
-    access_token = create_access_token({"sub": user.userid})
+    access_token = create_access_token({"sub": user.userID})
     response.set_cookie(
         key="access_token",
         value=access_token,
