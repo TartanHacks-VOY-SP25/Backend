@@ -172,8 +172,46 @@ async def get_contract(
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)
     ):
-    '''Returns all details of a specific contract.'''
-    return
+    '''
+    Returns all details of a specific contract.
+    If requested by the owner of this contract (the payer),
+    all affiliated bid Ids will be returned. If requested by anyone else,
+    only bids submitted by that user will be returned. 
+    '''
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        contract = await session.execute(
+            select(database.Contract).where(
+            database.Contract.contractID == contract_id
+            )
+        )
+        contract:database.Contract = contract.scalars().first()
+        if not contract:
+            response.status_code = 404
+            return {"detail": "Contract not found"}
+
+        retstruct = {
+            "contractID": contract.contractID,
+            "proposerID": contract.proposerID,
+            "biddingExpiryTime": contract.biddingExpiryTime,
+            "biddingSelectionExpiryTime": contract.biddingSelectionExpiryTime,
+            "title": contract.title,
+            "description": contract.description,
+            "contractStatus": contract.contractStatus
+        }
+        # query bids table for all affiliated bids, and if requestor is proposer
+        # return all of them. If requestor is a bidder, return only theirs.
+        bids = await session.execute(
+            select(database.Bid).where(
+                database.Bid.contractID == contract_id
+            )
+        )
+        bids: List[database.Bid] = bids.scalars().all()
+        if contract.proposerID == user:
+            retstruct["bids"] = [bid.bidID for bid in bids]
+        else:
+            retstruct["bids"] = [bid.bidID for bid in bids if bid.bidderID == user]
+        return retstruct
 
 @router.post("/{contract_id}/update-contract", tags=["Contracts"])
 async def update_contract(
