@@ -104,7 +104,11 @@ async def register(username: str, password: str):
             )
             session.add(new_user)
             await session.commit()
-    return {"message": "User registered successfully"}
+    return {
+        "message": "User registered successfully",
+        "XRP Wallet Address": xrp_acc_addr,
+        "XRP Seed (ONLY AVAILABLE ONCE)": xrp_acc_num
+    }
 
 @router.post("/login", tags=['Authentication'])
 async def login(user: str, password: str, response: Response):
