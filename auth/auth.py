@@ -7,9 +7,10 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 from database import database
+from typing import List
 
 # Constants
-# TODO: Replace with environment variables
+# TODO: REPLACE WITH ENV VARS
 SECRET_KEY = "testkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1
@@ -71,7 +72,6 @@ def check_and_renew_access_token(request: Request, response: Response):
 
 def get_current_user(request: Request):
     '''Retrieves the current user from the request.'''
-    check_and_renew_access_token(request, Response)
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -82,33 +82,40 @@ def get_current_user(request: Request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 # Routes
-@router.post("/register")
+@router.post("/register", tags=["Authentication"])
 async def register(username: str, password: str):
     '''Registers a new user.'''
-
-    # get all user entries from postgres db 
-    user_ids = []
     async with database.AsyncSessionLocalFactory() as session:
         user_ids = await session.execute(select(database.User.userid))
-        user_ids = user_ids.scalars().all()
-
-    if username in user_ids:
-        raise HTTPException(status_code=400, detail="User already exists")
-    else:
-        print("New user found against database!")
-    db_users[username] = hash_password(password)
+        user_ids: List[database.User] = user_ids.scalars().all()
+        if username in user_ids:
+            raise HTTPException(status_code=400, detail="User already exists")
+        else:
+            # create a new user and commit it to the database
+            new_user = database.User(
+                userid=username,
+                hashed_password=hash_password(password)
+            )
+            session.add(new_user)
+            await session.commit()
     return {"message": "User registered successfully"}
 
-@router.post("/login")
+@router.post("/login", tags=['Authentication'])
 async def login(user: str, password: str, response: Response):
     '''
     Logs in a user and sets a cookie with the access token.
     No HTTP request data to read.
     '''
-    stored_password = db_users.get(user.username)
-    if not stored_password or not verify_password(user.password, stored_password):
+    async with database.AsyncSessionLocalFactory() as session:
+        user = await session.execute(select(database.User).where(database.User.userid == user))
+        user:database.User = user.scalars().first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    
+    if (not user.hashed_password or not verify_password(password, user.hashed_password)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    access_token = create_access_token({"sub": user.username})
+    
+    access_token = create_access_token({"sub": user.userid})
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -118,7 +125,7 @@ async def login(user: str, password: str, response: Response):
     )
     return {"message": "Login successful"}
 
-@router.post("/logout")
+@router.post("/logout", tags=["Authentication"])
 async def logout(response: Response):
     '''
     Logs out a user by deleting the access token cookie.
@@ -127,7 +134,7 @@ async def logout(response: Response):
     response.delete_cookie("access_token")
     return {"message": "Logged out successfully"}
 
-@router.get("/me")
+@router.get("/me", tags=["Authentication"])
 async def get_me(request: Request, response: Response):
     '''
     Returns the current user's information.

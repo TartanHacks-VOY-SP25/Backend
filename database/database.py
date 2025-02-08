@@ -3,7 +3,7 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, String
 import enum
 
-# TODO: Database URL - replace with real credentials (ENV VAR)
+# TODO: REPLACE WITH REAL ENV VARS
 DATABASE_URL = "postgresql+asyncpg://myuser:mypassword@host.docker.internal:5432/mydatabase"
 
 

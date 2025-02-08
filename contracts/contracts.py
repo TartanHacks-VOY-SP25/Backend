@@ -6,7 +6,7 @@ from database import database
 router = APIRouter()
 
 # Routes
-@router.get("/open-contracts")
+@router.get("/open-contracts", tags=["Contracts"])
 async def get_open_contracts(
     request: Request, 
     response: Response,
@@ -14,7 +14,7 @@ async def get_open_contracts(
     '''Returns a list of open contracts.'''
     return
 
-@router.get("/my-contracts-all")
+@router.get("/my-contracts-all", tags=["Contracts"])
 async def get_my_contracts(
     request: Request, 
     response: Response,
@@ -23,7 +23,7 @@ async def get_my_contracts(
     '''Returns a list of all contracts affiliated with the current user.'''
     return
 
-@router.get("/my-contract-requests")
+@router.get("/my-contract-requests", tags=["Contracts"])
 async def get_my_contract_requests(
     request: Request, 
     response: Response,
@@ -31,7 +31,7 @@ async def get_my_contract_requests(
     '''Returns a list of all contract requests affiliated with the current user.'''
     return
 
-@router.get("/my-contract-bids")
+@router.get("/my-contract-bids", tags=["Bids"])
 async def get_my_contract_bids(
     request: Request, 
     response: Response,
@@ -39,7 +39,7 @@ async def get_my_contract_bids(
     '''Returns a list of all contracts the current user has placed a bid on.'''
     return
 
-@router.post("/create-contract")
+@router.post("/create-contract", tags=["Contracts"])
 async def create_contract(
     request: Request, 
     response: Response,
@@ -47,23 +47,7 @@ async def create_contract(
     '''Creates a new contract.'''
     return
 
-@router.post("/update-contract")
-async def update_contract(
-    request: Request, 
-    response: Response, 
-    auth: None=Depends(auth.check_and_renew_access_token)):
-    '''Tries to update an existing contract.'''
-    return
-
-@router.post("/delete-contract")
-async def delete_contract(
-    request: Request, 
-    response: Response, 
-    auth: None=Depends(auth.check_and_renew_access_token)):
-    '''Deletes an existing contract.'''
-    return
-
-@router.get("/details/{contract_id}")
+@router.get("/{contract_id}", tags=["Contracts"])
 async def get_contract(
     contract_id: int, 
     request: Request, 
@@ -73,7 +57,26 @@ async def get_contract(
     '''Returns the details of a specific contract.'''
     return
 
-@router.get("/details/{contract_id}/{bid_id}")
+@router.post("/{contract_id}/update-contract", tags=["Contracts"])
+async def update_contract(
+    contract_id: int,
+    request: Request, 
+    response: Response, 
+    auth: None=Depends(auth.check_and_renew_access_token)):
+    '''Tries to update an existing contract.'''
+    return
+
+@router.post("/{contract_id}/delete-contract", tags=["Contracts"])
+async def delete_contract(
+    contract_id: int,
+    request: Request, 
+    response: Response, 
+    auth: None=Depends(auth.check_and_renew_access_token)):
+    '''Deletes an existing contract.'''
+    return
+
+
+@router.get("/{contract_id}/{bid_id}", tags=["Bids"])
 async def get_contract_bid(
     contract_id: int, 
     bid_id: int, 
@@ -84,8 +87,9 @@ async def get_contract_bid(
     '''Returns the details of a specific contract bid.'''
     return
 
-@router.post("/create-contract-bid")
+@router.post("/{contract_id}/create-contract-bid", tags=["Bids"])
 async def create_contract_bid(
+    contract_id: int,
     request: Request, 
     response: Response, 
     auth: None=Depends(auth.check_and_renew_access_token)
@@ -93,3 +97,13 @@ async def create_contract_bid(
     '''Creates a new contract bid.'''
     return
 
+@router.post("/{contract_id}/{bid_id}/delete-contract-bid", tags=["Bids"])
+async def create_contract_bid(
+    contract_id: int,
+    bid_id: int,
+    request: Request, 
+    response: Response, 
+    auth: None=Depends(auth.check_and_renew_access_token)
+    ):
+    '''Deletes a contract bid.'''
+    return
