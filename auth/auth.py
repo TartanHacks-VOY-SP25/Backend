@@ -93,9 +93,11 @@ async def register(username: str, password: str):
             raise HTTPException(status_code=400, detail="User already exists")
         else:
             # create a new user and commit it to the database
-            xrp_acc_num, xrp_acc_addr = create_account()
+            xrp_wallet = await create_account.create_account()
+            xrp_acc_num  = xrp_wallet.seed
+            xrp_acc_addr = xrp_wallet.address
             new_user = database.User(
-                userid=username,
+                userID=username,
                 hashed_password=hash_password(password),
                 xrp_acc_num=xrp_acc_num,
                 xrp_acc_addr=xrp_acc_addr

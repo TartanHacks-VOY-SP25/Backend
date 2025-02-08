@@ -214,30 +214,79 @@ async def get_contract(
             retstruct["bids"] = [bid.bidID for bid in bids if bid.bidderID == user]
         return retstruct
 
-@router.post("/{contract_id}/update-contract", tags=["Contracts"])
-async def update_contract(
+@router.get("/{contract_id}/{bid}/complete", tags=["Contracts", "Bids"])
+async def complete_contract(
     contract_id: int,
-    request: Request, 
-    response: Response, 
-    _auth: None=Depends(auth.check_and_renew_access_token)):
+    bid_id: int,
+    request: Request,
+    response: Response):
     '''
-    Tries to update an existing contract.
-    NOT YET IMPLEMENTED
+    Shipping partner needs to be able to mark a contract as completed. 
     '''
-    return
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        contract_result = await session.execute(
+            select(database.Contract).where(
+                database.Contract.contractID == contract_id 
+            )
+        )
+        contract = contract_result.scalar_one_or_none()
 
-@router.post("/{contract_id}/delete-contract", tags=["Contracts"])
-async def delete_contract(
-    contract_id: int,
-    request: Request, 
-    response: Response, 
-    _auth: None=Depends(auth.check_and_renew_access_token)):
-    '''
-    Deletes an existing contract.
-    NOT YET IMPLEMENTED
-    '''
-    return
+        if not contract:
+            response.status_code = 404
+            return {"error": "Contract not found"}
 
+        bid_result = await session.execute(
+            select(database.Bid).where(
+                database.Bid.bidID == bid_id
+            )
+        )
+        bid = bid_result.scalar_one_or_none()
+
+        if not bid:
+            response.status_code = 404
+            return {"error": "Bid not found"}
+
+        if bid.contractID != contract.contractID:
+            response.status_code = 400
+            return {"error": "Bid does not belong to the specified contract"}
+
+        # bid and contract match, mark contract as completed
+        contract.contractStatus = database.ContractStatus.COMPLETED
+        contract.contractCompletionTime = datetime.utcnow()
+        session.add(contract)
+        await session.commit()
+
+        # TODO: calculate incentive boost using sensor records between 
+        # contract award time and contract completion time
+
+        # TODO: issue payout
+
+        return {"message": "Contract marked as completed successfully"}
+
+# @router.post("/{contract_id}/update-contract", tags=["Contracts"])
+# async def update_contract(
+#     contract_id: int,
+#     request: Request, 
+#     response: Response, 
+#     _auth: None=Depends(auth.check_and_renew_access_token)):
+#     '''
+#     Tries to update an existing contract.
+#     NOT YET IMPLEMENTED
+#     '''
+#     return
+
+# @router.post("/{contract_id}/delete-contract", tags=["Contracts"])
+# async def delete_contract(
+#     contract_id: int,
+#     request: Request, 
+#     response: Response, 
+#     _auth: None=Depends(auth.check_and_renew_access_token)):
+#     '''
+#     Deletes an existing contract.
+#     NOT YET IMPLEMENTED
+#     '''
+#     return
 
 @router.get("/{contract_id}/{bid_id}", tags=["Bids"])
 async def get_contract_bid(
@@ -315,16 +364,95 @@ async def create_contract_bid(
         await session.refresh(new_bid)
     return {"bidID": new_bid.bidID, "contractID": new_bid.contractID}
 
-@router.post("/{contract_id}/{bid_id}/delete-contract-bid", tags=["Bids"])
-async def delete_contract_bid(
+@router.post("/{contract_id}/{bid_id}/accept", tags=["Bids"])
+async def accept_contract_bid(
     contract_id: int,
     bid_id: int,
-    request: Request, 
-    response: Response, 
-    _auth: None=Depends(auth.check_and_renew_access_token)
-    ):
+    request: Request,
+    _auth:None=Depends(auth.check_and_renew_access_token)
+):
     '''
-    Deletes a contract bid.
+    Contract Owner needs to be able to accept a bid on a contract.
     '''
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
 
+        # mark bid as accepted
+        bid_result = await session.execute(
+            select(database.Bid).where(
+                database.Bid.bidID == bid_id,
+                database.Bid.contractID == contract_id
+            )
+        )
+        bid = bid_result.scalar_one_or_none()
+        if not bid:
+            return {"error": "Bid not found"}
+
+        bid.bidStatus = database.BidStatus.ACCEPTED
+        session.add(bid)
+        await session.commit()
+        await session.refresh(bid)
+
+        #update contract fields
+        contract = await session.execute(
+            select(database.Contract).where(
+                database.Contract.contractID == contract_id
+            )
+        )
+        contract = contract.scalar_one_or_none()
+        
+        if not contract:
+            return {"error": "Contract not found"}
+
+        contract.contractStatus    = database.ContractStatus.IN_PROGRESS
+        contract.contractAwardTime = datetime.now()
+        session.add(contract)
+        await session.commit()
+        await session.refresh(contract)
+
+        return {"message": "Bid accepted successfully"}
+
+
+@router.post("/{contract_id}/{bid_id}/reject", tags=["Bids"])
+async def reject_contract_bid(
+    contract_id: int,
+    bid_id: int,
+    _auth:None=Depends(auth.check_and_renew_access_token)
+):
+    '''
+    Contract Owner needs to be able to dismiss / reject a bid on a contract
+    '''
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+
+        # mark bid as accepted
+        bid_result = await session.execute(
+            select(database.Bid).where(
+                database.Bid.bidID == bid_id,
+                database.Bid.contractID == contract_id
+            )
+        )
+        bid = bid_result.scalar_one_or_none()
+        if not bid:
+            return {"error": "Bid not found"}
+
+        bid.bidStatus = BidStatus.REJECTED
+        session.add(bid)
+        await session.commit()
+        await session.refresh(bid)
     return
+
+
+# @router.post("/{contract_id}/{bid_id}/delete-contract-bid", tags=["Bids"])
+# async def delete_contract_bid(
+#     contract_id: int,
+#     bid_id: int,
+#     request: Request, 
+#     response: Response, 
+#     _auth: None=Depends(auth.check_and_renew_access_token)
+#     ):
+#     '''
+#     Deletes a contract bid. NOT YET IMPLEMENTED.
+#     '''
+
+#     return
