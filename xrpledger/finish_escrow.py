@@ -1,6 +1,6 @@
 from xrpl.clients import JsonRpcClient
 from xrpl.models import EscrowFinish
-from xrpl.transaction import submit_and_wait
+from xrpl.asyncio.transaction import submit_and_wait
 from xrpl.wallet import Wallet
 from xrpl.constants import CryptoAlgorithm
 from xrpl.utils import drops_to_xrp
@@ -27,11 +27,3 @@ def finish_contract(sequences : list, conditions : list, fulfillments : list, so
         # Parse response and return result
         stxn_result = stxn_response.result
         metadata = stxn_result.get("meta", {})
-        if metadata.get("TransactionResult"):
-            print("Result code:", metadata["TransactionResult"])
-        if metadata.get("delivered_amount"):
-            print("XRP delivered:", drops_to_xrp(
-                        metadata["delivered_amount"]))
-        # Parse result and print out the transaction result and transaction hash
-        # print(stxn_result["meta"]["TransactionResult"])
-        # print(stxn_result["hash"])
