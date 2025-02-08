@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
 from database import database
 from typing import List
+from xrpledger import create_account
 
 # Constants
 # TODO: REPLACE WITH ENV VARS
@@ -92,9 +93,12 @@ async def register(username: str, password: str):
             raise HTTPException(status_code=400, detail="User already exists")
         else:
             # create a new user and commit it to the database
+            xrp_acc_num, xrp_acc_addr = create_account()
             new_user = database.User(
-                userID=username,
-                hashed_password=hash_password(password)
+                userid=username,
+                hashed_password=hash_password(password),
+                xrp_acc_num=xrp_acc_num,
+                xrp_acc_addr=xrp_acc_addr
             )
             session.add(new_user)
             await session.commit()

@@ -1,8 +1,10 @@
 -- Create the 'users' table
 CREATE TABLE users (
     "userID" VARCHAR PRIMARY KEY NOT NULL,
-    "hashed_password" VARCHAR NOT NULL
+    "hashed_password" VARCHAR NOT NULL,
     -- Add additional columns as needed
+    "xrp_acc_num" VARCHAR UNIQUE,
+    "xrp_acc_addr" VARCHAR UNIQUE
 );
 
 -- Create the 'user_sensors' table

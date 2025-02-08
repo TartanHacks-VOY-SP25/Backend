@@ -19,6 +19,8 @@ class User(Base):
     # email: str
     # full_name: str
     # disabled: bool
+    xrp_acc_num                     = Column(String, unique=True)
+    xrp_acc_addr                    = Column(String, unique=True)
 
 class Sensor(Base):
     __tablename__ = "user_sensors"
