@@ -41,6 +41,7 @@ async def get_my_contracts(
     '''
     Returns a list of all contracts affiliated with the current user.
     This is both contracts proposed by the user, as well as contracts bidded on by the user.
+    Returns in compact form (ID, Title)
     '''
     user = auth.get_current_user(request)['sub']
     async with database.AsyncSessionLocalFactory() as session:
@@ -67,9 +68,13 @@ async def get_my_contracts(
         bid_contracts: List[database.Contract] = bid_contracts.scalars().all()
     user_contracts = user_contracts.scalars().all()
     user_contracts.extend(bid_contracts)
-    return user_contracts
-
-    return
+    compact_contracts = [
+        {
+            "contractID": contract.contractID,
+            "title": contract.title,
+        } for contract in user_contracts
+    ]
+    return compact_contracts
 
 @router.get("/my-contract-requests", tags=["Contracts"])
 async def get_my_contract_requests(
@@ -77,7 +82,21 @@ async def get_my_contract_requests(
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)):
     '''Returns a list of all contract requests affiliated with the current user.'''
-    return
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        user_contracts = await session.execute(
+            select(database.Contract).where(
+                (database.Contract.proposerID == user) 
+            )
+        )
+    user_contracts:List[database.Contract] = user_contracts.scalars().all()
+    compact_contracts = [
+        {
+            "contractID": contract.contractID,
+            "title": contract.title,
+        } for contract in user_contracts
+    ]
+    return compact_contracts
 
 @router.get("/my-contract-bids", tags=["Bids"])
 async def get_my_contract_bids(
