@@ -1,17 +1,18 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.future import select
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel
+from database import database
 
 # Constants
 # TODO: Replace with environment variables
 SECRET_KEY = "testkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1
-
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -21,9 +22,6 @@ router = APIRouter()
 db_users = {}
 
 # Convenience helpers
-class User(BaseModel):
-    username: str
-    password: str
 
 def hash_password(password: str) -> str:
     '''Hashes a password using bcrypt.'''
@@ -64,13 +62,12 @@ def check_and_renew_access_token(request: Request, response: Response):
                 secure=True,
                 samesite="Lax"
             )
-        if datetime.now(timezone.utc > datetime.fromtimestamp(payload["exp"], timezone.utc)):
+        if (datetime.now(timezone.utc) > datetime.fromtimestamp(payload["exp"], timezone.utc)):
             # token expired
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Access Token has expired")
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     return payload
-
 
 def get_current_user(request: Request):
     '''Retrieves the current user from the request.'''
@@ -86,15 +83,24 @@ def get_current_user(request: Request):
 
 # Routes
 @router.post("/register")
-def register(user: User):
+async def register(username: str, password: str):
     '''Registers a new user.'''
-    if user.username in db_users:
+
+    # get all user entries from postgres db 
+    user_ids = []
+    async with database.AsyncSessionLocalFactory() as session:
+        user_ids = await session.execute(select(database.User.userid))
+        user_ids = user_ids.scalars().all()
+
+    if username in user_ids:
         raise HTTPException(status_code=400, detail="User already exists")
-    db_users[user.username] = hash_password(user.password)
+    else:
+        print("New user found against database!")
+    db_users[username] = hash_password(password)
     return {"message": "User registered successfully"}
 
 @router.post("/login")
-def login(user: User, response: Response):
+async def login(user: str, password: str, response: Response):
     '''
     Logs in a user and sets a cookie with the access token.
     No HTTP request data to read.
@@ -113,7 +119,7 @@ def login(user: User, response: Response):
     return {"message": "Login successful"}
 
 @router.post("/logout")
-def logout(response: Response):
+async def logout(response: Response):
     '''
     Logs out a user by deleting the access token cookie.
     No HTTP request data to read.
@@ -122,7 +128,7 @@ def logout(response: Response):
     return {"message": "Logged out successfully"}
 
 @router.get("/me")
-def get_me(request: Request, response: Response):
+async def get_me(request: Request, response: Response):
     '''
     Returns the current user's information.
     Checks and renews the access token if necessary.

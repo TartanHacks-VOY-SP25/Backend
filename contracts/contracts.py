@@ -1,16 +1,13 @@
-import os
 from fastapi import APIRouter, Response, Request, Depends
-from pydantic import BaseModel
-from datetime import datetime, timezone
-from enum import Enum
 from auth import auth
 from database import database
 
 
 router = APIRouter()
+
 # Routes
 @router.get("/open-contracts")
-def get_open_contracts(
+async def get_open_contracts(
     request: Request, 
     response: Response,
     auth: None=Depends(auth.check_and_renew_access_token)):
@@ -18,7 +15,7 @@ def get_open_contracts(
     return
 
 @router.get("/my-contracts-all")
-def get_my_contracts(
+async def get_my_contracts(
     request: Request, 
     response: Response,
     auth: None=Depends(auth.check_and_renew_access_token)
@@ -27,7 +24,7 @@ def get_my_contracts(
     return
 
 @router.get("/my-contract-requests")
-def get_my_contract_requests(
+async def get_my_contract_requests(
     request: Request, 
     response: Response,
     auth: None=Depends(auth.check_and_renew_access_token)):
@@ -35,7 +32,7 @@ def get_my_contract_requests(
     return
 
 @router.get("/my-contract-bids")
-def get_my_contract_bids(
+async def get_my_contract_bids(
     request: Request, 
     response: Response,
     auth: None=Depends(auth.check_and_renew_access_token)):
@@ -43,7 +40,7 @@ def get_my_contract_bids(
     return
 
 @router.post("/create-contract")
-def create_contract(
+async def create_contract(
     request: Request, 
     response: Response,
     auth: None=Depends(auth.check_and_renew_access_token)):
@@ -51,7 +48,7 @@ def create_contract(
     return
 
 @router.post("/update-contract")
-def update_contract(
+async def update_contract(
     request: Request, 
     response: Response, 
     auth: None=Depends(auth.check_and_renew_access_token)):
@@ -59,7 +56,7 @@ def update_contract(
     return
 
 @router.post("/delete-contract")
-def delete_contract(
+async def delete_contract(
     request: Request, 
     response: Response, 
     auth: None=Depends(auth.check_and_renew_access_token)):
@@ -67,7 +64,7 @@ def delete_contract(
     return
 
 @router.get("/details/{contract_id}")
-def get_contract(
+async def get_contract(
     contract_id: int, 
     request: Request, 
     response: Response,
@@ -77,7 +74,7 @@ def get_contract(
     return
 
 @router.get("/details/{contract_id}/{bid_id}")
-def get_contract_bid(
+async def get_contract_bid(
     contract_id: int, 
     bid_id: int, 
     request: Request, 
@@ -88,7 +85,7 @@ def get_contract_bid(
     return
 
 @router.post("/create-contract-bid")
-def create_contract_bid(
+async def create_contract_bid(
     request: Request, 
     response: Response, 
     auth: None=Depends(auth.check_and_renew_access_token)

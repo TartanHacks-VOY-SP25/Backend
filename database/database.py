@@ -1,11 +1,11 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, String
-from datetime import datetime
 import enum
 
-# TODO: Database URL - replace with real credentials
-DATABASE_URL = "postgresql+asyncpg://user:password@localhost:5432/dbname"
+# TODO: Database URL - replace with real credentials (ENV VAR)
+DATABASE_URL = "postgresql+asyncpg://myuser:mypassword@host.docker.internal:5432/mydatabase"
+
 
 # DB Models
 # Base class for models
@@ -13,12 +13,12 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-    userID                          = Column(String, primary_key=True, nullable=False, index=True)
+    userid                          = Column(String, primary_key=True, nullable=False, index=True)
     hashed_password                 = Column(String, nullable=False)
+    # TODO: XRP wallet details
     # email: str
     # full_name: str
     # disabled: bool
-    # XRP wallet details
 
 class Sensor(Base):
     __tablename__ = "user_sensors"
@@ -32,10 +32,10 @@ class Sensor(Base):
 class SensorData(Base):
     __tablename__ = "sensor_data"
     sensorID                      = Column(String, ForeignKey("user_sensors.sensorID"),  primary_key=True, nullable=False)
-    timestamp                     = Column(DateTime, primary_key=True, nullable=False)
-    drop_alerts                   = Column(Integer, nullable=False, index=True)
-    overtemp_alerts               = Column(Integer, nullable=False, index=True)
-    water_events                  = Column(Integer, nullable=False, index=True)
+    timestamp                     = Column(DateTime, nullable=False)
+    drop_alerts                   = Column(Integer,  nullable=False, index=True)
+    overtemp_alerts               = Column(Integer,  nullable=False, index=True)
+    water_events                  = Column(Integer,  nullable=False, index=True)
 
 
 class ContractStatus(str, enum.Enum):
@@ -70,17 +70,10 @@ class Bid(Base):
     incentives                    = Column(String,                                      index=True, nullable=False)
     bidStatus                     = Column(Enum(BidStatus),                             index=True, nullable=False)
     bidTime                       = Column(DateTime,                                    index=True, nullable=False)   
-    sensorID                      = Column(String, ForeignKey("user_sensors.sensorID"),            index=True, nullable=False)
-
-
+    sensorID                      = Column(String, ForeignKey("user_sensors.sensorID"), index=True, nullable=False)
 
 # Create async engine
 engine = create_async_engine(DATABASE_URL, echo=True)
 
 # Create session factory
-AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
-
-# Dependency to get database session
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
+AsyncSessionLocalFactory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
