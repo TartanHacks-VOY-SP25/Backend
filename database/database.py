@@ -13,7 +13,7 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-    userid                          = Column(String, primary_key=True, nullable=False, index=True)
+    userID                          = Column(String, primary_key=True, nullable=False, index=True)
     hashed_password                 = Column(String, nullable=False)
     # TODO: XRP wallet details
     # email: str
@@ -52,9 +52,10 @@ class Contract(Base):
     biddingSelectionExpiryTime    = Column(DateTime,             nullable=False, index=True)
     contractAwardTime             = Column(DateTime,             nullable=True,  index=True)
     contractCompletionTime        = Column(DateTime,             nullable=True,  index=True)
-    contractStatus                = Column(Enum(ContractStatus), nullable=False, index=True)
+    contractStatus                = Column(String,               nullable=False, index=True)
     title                         = Column(String,               nullable=False, index=True)
     description                   = Column(String,               nullable=False, index=True)
+    # TODO: Add fields as necessary for XRP integration
 
 class BidStatus(str, enum.Enum):
     OPEN = "open"
@@ -68,7 +69,7 @@ class Bid(Base):
     contractID                    = Column(Integer, ForeignKey("contracts.contractID"), index=True, nullable=False)
     bidFloorPrice                 = Column(Integer,                                     index=True, nullable=False)
     incentives                    = Column(String,                                      index=True, nullable=False)
-    bidStatus                     = Column(Enum(BidStatus),                             index=True, nullable=False)
+    bidStatus                     = Column(String,                                      index=True, nullable=False)
     bidTime                       = Column(DateTime,                                    index=True, nullable=False)   
     sensorID                      = Column(String, ForeignKey("user_sensors.sensorID"), index=True, nullable=False)
 
