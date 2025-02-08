@@ -14,7 +14,10 @@ RUN apk add --no-cache \
     openssh \
     gcc \
     musl-dev \
-    postgresql-dev
+    postgresql-dev \
+    sqlite \
+    sqlite-dev
+
 
 # Copy local code to the container image.
 COPY . .
