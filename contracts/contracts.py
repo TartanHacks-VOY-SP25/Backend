@@ -264,30 +264,6 @@ async def complete_contract(
 
         return {"message": "Contract marked as completed successfully"}
 
-# @router.post("/{contract_id}/update-contract", tags=["Contracts"])
-# async def update_contract(
-#     contract_id: int,
-#     request: Request, 
-#     response: Response, 
-#     _auth: None=Depends(auth.check_and_renew_access_token)):
-#     '''
-#     Tries to update an existing contract.
-#     NOT YET IMPLEMENTED
-#     '''
-#     return
-
-# @router.post("/{contract_id}/delete-contract", tags=["Contracts"])
-# async def delete_contract(
-#     contract_id: int,
-#     request: Request, 
-#     response: Response, 
-#     _auth: None=Depends(auth.check_and_renew_access_token)):
-#     '''
-#     Deletes an existing contract.
-#     NOT YET IMPLEMENTED
-#     '''
-#     return
-
 @router.get("/{contract_id}/{bid_id}", tags=["Bids"])
 async def get_contract_bid(
     contract_id: int, 
@@ -384,7 +360,7 @@ async def accept_contract_bid(
                 database.Bid.contractID == contract_id
             )
         )
-        bid = bid_result.scalar_one_or_none()
+        bid:database.Bid = bid_result.scalar_one_or_none()
         if not bid:
             return {"error": "Bid not found"}
 
@@ -399,7 +375,7 @@ async def accept_contract_bid(
                 database.Contract.contractID == contract_id
             )
         )
-        contract = contract.scalar_one_or_none()
+        contract:database.Contract = contract.scalar_one_or_none()
         
         if not contract:
             return {"error": "Contract not found"}
@@ -410,7 +386,23 @@ async def accept_contract_bid(
         await session.commit()
         await session.refresh(contract)
 
-        return {"message": "Bid accepted successfully"}
+        # get wallet info for transaction
+        payer_user   = await session.execute(select(database.User).where(database.User.userID == contract.proposerID))
+        shipper_user = await session.execute(select(database.User).where(database.User.userID == bid.bidderID))
+        payer_user:database.User    = payer_user.scalar_one_or_none()
+        shipper_user:database.User  = shipper_user.scalar_one_or_none() 
+
+
+
+
+
+    # account number of contract owner
+    # account number of winnning bid owner
+    # list of payment amounts (base price)
+        
+        
+
+    return {"message": "Bid accepted successfully"}
 
 
 @router.post("/{contract_id}/{bid_id}/reject", tags=["Bids"])

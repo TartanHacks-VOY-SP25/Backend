@@ -13,6 +13,12 @@ from database import database
 
 router = APIRouter()
 
+class SensorData(BaseModel):
+    uid: str
+    fall: str
+    temp: str
+    hum: str
+
 @router.post("/register_sensor", tags=["Sensor"])
 async def register_sensor(
     sensor: str, 
@@ -32,16 +38,9 @@ async def register_sensor(
     return {'registered_sensor_id': sensor, 'registered_owner': _user['sub']}
 
 
-
-
-class SensorData(BaseModel):
-    uid: str
-    fall: str
-    temp: str
-    hum: str
-
 @router.post("/sensor_data", tags=["Sensor"])
 async def sensor_data(data: SensorData, request: Request):
+    # write the sensor data into the database, and gracefully handle and report any errors 
     async with database.AsyncSessionLocalFactory() as session:
         # just format the data and upload, no authentication needed.
         sensor_data = database.SensorData(
@@ -59,6 +58,4 @@ async def sensor_data(data: SensorData, request: Request):
             raise HTTPException(status_code=400, detail="Unknown error occurred.")
     
     return {"status": "success"}
-
-        # write the sensor data into the database, and gracefully handle and report any errors 
         
