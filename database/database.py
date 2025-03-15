@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, String
+import enum
 
 # TODO: REPLACE WITH REAL ENV VARS
 DATABASE_URL = "postgresql+asyncpg://myuser:mypassword@host.docker.internal:5432/mydatabase"
@@ -28,6 +29,13 @@ class SensorData(Base):
     overtemp_alerts = Column(Integer, nullable=False, index=True)
     water_events =    Column(Integer, nullable=False, index=True)
 
+class ContractStatus(str, enum.Enum):
+    # contract_status can be OPEN, FULFILLMENT, COMPLETED, or FAILED
+    OPEN = "OPEN"
+    FULFILLMENT = "FULFILLMENT"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
 class Contract(Base):
     __tablename__ = "contracts"
     contract_id =              Column(Integer, primary_key=True, index=True)
@@ -35,8 +43,7 @@ class Contract(Base):
     courier_id =               Column(String, ForeignKey("users.user_id"), index=True)
     contract_award_time =      Column(DateTime, nullable=True, index=True)
     contract_completion_time = Column(DateTime, nullable=True, index=True)
-    # contract_status can be OPEN, FULFILLMENT, COMPLETED, or FAILED
-    contract_status =          Column(String, nullable=False, index=True)
+    contract_status =          Column(ContractStatus, nullable=False, index=True)
     required_collateral =      Column(Float, nullable=True)
     base_price =               Column(Float, nullable=False, index=True)
     t1_bonus =                 Column(Float, nullable=True, index=True)
