@@ -1,13 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, String
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, Float
 import enum
 
 # TODO: REPLACE WITH REAL ENV VARS
 DATABASE_URL = "postgresql+asyncpg://myuser:mypassword@host.docker.internal:5432/mydatabase"
 
 # DB Models
-# Base class for models
 Base = declarative_base()
 
 class User(Base):
@@ -29,8 +28,7 @@ class SensorData(Base):
     overtemp_alerts = Column(Integer, nullable=False, index=True)
     water_events =    Column(Integer, nullable=False, index=True)
 
-class ContractStatus(str, enum.Enum):
-    # contract_status can be OPEN, FULFILLMENT, COMPLETED, or FAILED
+class ContractStatus(enum.Enum):
     OPEN = "OPEN"
     FULFILLMENT = "FULFILLMENT"
     COMPLETED = "COMPLETED"
@@ -38,16 +36,25 @@ class ContractStatus(str, enum.Enum):
 
 class Contract(Base):
     __tablename__ = "contracts"
-    contract_id =              Column(Integer, primary_key=True, index=True)
-    proposer_id =              Column(String, ForeignKey("users.user_id"), index=True)
-    courier_id =               Column(String, ForeignKey("users.user_id"), index=True)
+    contract_id =              Column(Integer, primary_key=True, nullable=False, index=True)
+    proposer_id =              Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
+    courier_id =               Column(String, ForeignKey("users.user_id"), nullable=True, index=True)
     contract_award_time =      Column(DateTime, nullable=True, index=True)
     contract_completion_time = Column(DateTime, nullable=True, index=True)
-    contract_status =          Column(ContractStatus, nullable=False, index=True)
-    required_collateral =      Column(Float, nullable=True)
+    # contract_status can be OPEN, FULFILLMENT, COMPLETED, or FAILED
+    contract_status =          Column(Enum(ContractStatus), nullable=False, index=True)
+    required_collateral =      Column(Float, nullable=False)
     base_price =               Column(Float, nullable=False, index=True)
-    t1_bonus =                 Column(Float, nullable=True, index=True)
-    t2_bonus =                 Column(Float, nullable=True, index=True)
+    t1_bonus =                 Column(Float, nullable=False, index=True)
+    t2_bonus =                 Column(Float, nullable=False, index=True)
+    base_lock =                Column(String, nullable=False)
+    t1_lock =                  Column(String, nullable=False)
+    t2_lock =                  Column(String, nullable=False)
+    collateral_lock =          Column(String, nullable=False)
+    base_key =                 Column(String, nullable=False)
+    t1_key =                   Column(String, nullable=False)
+    t2_key =                   Column(String, nullable=False)
+    collateral_key =           Column(String, nullable=False)
     origin =                   Column(String, nullable=False, index=True)
     destination =              Column(String, nullable=False, index=True)
     contract_timeout =         Column(DateTime, nullable=True, index=True)
