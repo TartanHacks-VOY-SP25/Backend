@@ -7,6 +7,7 @@ from sensor.sensor import router as sensor_router
 origins = [
     "http://localhost",
     "http://localhost:8000",
+    "*"
     # Add other origins as needed
 ]
 
