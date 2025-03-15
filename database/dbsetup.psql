@@ -1,56 +1,50 @@
--- Create the 'users' table
 CREATE TABLE users (
-    "userID" VARCHAR PRIMARY KEY NOT NULL,
-    "hashed_password" VARCHAR NOT NULL
-    -- Add additional columns as needed
+    user_id VARCHAR PRIMARY KEY NOT NULL,
+    hashed_password VARCHAR NOT NULL,
+    wallet_number VARCHAR NOT NULL,
+    wallet_address VARCHAR NOT NULL
 );
 
--- Create the 'user_sensors' table
 CREATE TABLE user_sensors (
-    "sensorID" VARCHAR PRIMARY KEY NOT NULL,
-    "ownerID" VARCHAR NOT NULL,
-    FOREIGN KEY ("ownerID") REFERENCES users("userID")
-    -- Add additional columns as needed
+    sensor_id VARCHAR PRIMARY KEY NOT NULL,
+    owner_id VARCHAR NOT NULL,
+    FOREIGN KEY (owner_id) REFERENCES users(user_id)
 );
 
--- Create the 'sensor_data' table
 CREATE TABLE sensor_data (
-    "sensorID" VARCHAR NOT NULL,
-    "timestamp" TIMESTAMP NOT NULL,
-    "drop_alerts" INTEGER NOT NULL,
-    "overtemp_alerts" INTEGER NOT NULL,
-    "water_events" INTEGER NOT NULL,
-    PRIMARY KEY ("sensorID", "timestamp"),
-    FOREIGN KEY ("sensorID") REFERENCES user_sensors("sensorID")
+    sensor_id VARCHAR PRIMARY KEY NOT NULL,
+    drop_alerts INTEGER NOT NULL,
+    overtemp_alerts INTEGER NOT NULL,
+    water_events INTEGER NOT NULL,
+    FOREIGN KEY (sensor_id) REFERENCES user_sensors(sensor_id)
 );
-
 
 -- Create the 'contracts' table
 CREATE TABLE contracts (
-    "contractID" SERIAL PRIMARY KEY,
-    "proposerID" VARCHAR,
-    "biddingExpiryTime" TIMESTAMP NOT NULL,
-    "biddingSelectionExpiryTime" TIMESTAMP NOT NULL,
-    "contractAwardTime" TIMESTAMP,
-    "contractCompletionTime" TIMESTAMP,
-    "contractStatus" VARCHAR NOT NULL,
-    "title" VARCHAR NOT NULL,
-    "description" VARCHAR NOT NULL,
-    FOREIGN KEY ("proposerID") REFERENCES users("userID")
-);
-
-
--- Create the 'bids' table
-CREATE TABLE bids (
-    "bidID" SERIAL PRIMARY KEY,
-    "bidderID" VARCHAR NOT NULL,
-    "contractID" INTEGER NOT NULL,
-    "bidFloorPrice" INTEGER NOT NULL,
-    "incentives" VARCHAR NOT NULL,
-    "bidStatus" VARCHAR NOT NULL,
-    "bidTime" TIMESTAMP NOT NULL,
-    "sensorID" VARCHAR NOT NULL,
-    FOREIGN KEY ("bidderID") REFERENCES users("userID"),
-    FOREIGN KEY ("contractID") REFERENCES contracts("contractID"),
-    FOREIGN KEY ("sensorID") REFERENCES user_sensors("sensorID")
+    contract_id SERIAL PRIMARY KEY NOT NULL,
+    proposer_id VARCHAR NOT NULL,
+    courier_id VARCHAR,
+    contract_award_time TIMESTAMP,
+    contract_completion_time TIMESTAMP,
+    -- contract_status can be OPEN, FULFILLMENT, COMPLETED, or FAILED
+    contract_status VARCHAR NOT NULL,
+    required_collateral REAL NOT NULL,
+    base_price REAL NOT NULL,
+    t1_bonus REAL NOT NULL,
+    t2_bonus REAL NOT NULL,
+    base_lock VARCHAR NOT NULL,
+    t1_lock VARCHAR NOT NULL,
+    t2_lock VARCHAR NOT NULL,
+    collateral_lock VARCHAR NOT NULL,
+    base_key VARCHAR NOT NULL,
+    t1_key VARCHAR NOT NULL,
+    t2_key VARCHAR NOT NULL,
+    collateral_key VARCHAR NOT NULL,
+    origin VARCHAR NOT NULL,
+    destination VARCHAR NOT NULL,
+    contract_timeout TIMESTAMP,
+    sensor_id VARCHAR,
+    FOREIGN KEY (proposer_id) REFERENCES users(user_id),
+    FOREIGN KEY (courier_id) REFERENCES users(user_id),
+    FOREIGN KEY (sensor_id) REFERENCES user_sensors(sensor_id)
 );

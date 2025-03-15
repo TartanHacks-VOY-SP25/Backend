@@ -24,16 +24,6 @@ COPY . .
 # Install project dependencies
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
-# Ensure SSH directory exists
-RUN mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh
-
-# Ensure SSH config file exists with proper permissions
-RUN touch /root/.ssh/config && \
-    chmod 600 /root/.ssh/config
-
-# Install SSH client
-RUN apt-get update && apt-get install -y openssh-client
 
 # Run the web service on container startup.
 CMD ["hypercorn", "main:app", "--bind", "::"]
