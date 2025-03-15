@@ -13,7 +13,7 @@ from typing import List
 # TODO: REPLACE WITH ENV VARS
 SECRET_KEY = "testkey"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 1
+ACCESS_TOKEN_EXPIRE_MINUTES = 5
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -82,6 +82,7 @@ def get_current_user(request: Request):
 @router.post("/register", tags=["Authentication"])
 async def register(username: str, password: str):
     '''Registers a new user.'''
+    print("HERE")
     async with database.AsyncSessionLocalFactory() as session:
         user_ids = await session.execute(select(database.User.userID))
         user_ids: List[database.User] = user_ids.scalars().all()
@@ -137,6 +138,19 @@ async def get_me(request: Request, response: Response):
     Returns the current user's information.
     Checks and renews the access token if necessary.
     '''
+
+    #debug
+    print(f"Request Headers: {dict(request.headers)}")
+    print(f"Request Query Parameters: {dict(request.query_params)}")
+    try:
+        print(f"Request JSON Body: {await request.json()}")
+    except Exception:
+        print(f"Request Text Body: {await request.body()}")
+    print(f"Request Method: {request.method}")
+    print(f"Request URL: {request.url}")
+
+
     check_and_renew_access_token(request, response)
     user=get_current_user(request)
+    print(user)
     return {"username": user["sub"]}
