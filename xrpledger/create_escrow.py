@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from xrpl.clients import JsonRpcClient
 from xrpl.models import EscrowCreate
-from xrpl.asyncio.transaction import submit_and_wait
+from xrpl.transaction import submit_and_wait
 from xrpl.utils import datetime_to_ripple_time, xrp_to_drops
 from xrpl.wallet import Wallet
 from xrpl.constants import CryptoAlgorithm
@@ -28,7 +28,7 @@ def create_escrow(source_acc_num: str, dest_acc_num : str, payment_amt : list, e
         secret = urandom(32)
         # Generate cryptic image from secret
         fufill = PreimageSha256(preimage=secret)
-        # Parse image and return the condition and fulfillment
+
         condition = str.upper(fufill.condition_binary.hex())
         conditions.append(condition)
 
