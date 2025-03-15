@@ -35,7 +35,7 @@ async def get_open_contracts(
     ]
     return compact_contracts
 
-@router.get("/my-contracts-all", tags=["Contracts"])
+@router.get("/my-contracts-all", tags=["Contracts", "Proposer", "Courier"])
 async def get_my_contracts(
     request: Request, 
     response: Response,
@@ -79,7 +79,7 @@ async def get_my_contracts(
     ]
     return compact_contracts
 
-@router.get("/my-contract-requests", tags=["Contracts"])
+@router.get("/my-contract-requests", tags=["Contracts", "Proposer"])
 async def get_my_contract_requests(
     request: Request, 
     response: Response,
@@ -101,8 +101,8 @@ async def get_my_contract_requests(
     ]
     return compact_contracts
 
-@router.get("/my-contract-bids", tags=["Bids"])
-async def get_my_contract_bids(
+@router.get("/my-contract-deliveries", tags=["Contracts", "Courier"])
+async def get_my_contract_deliveries(
     request: Request, 
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)):
@@ -134,7 +134,7 @@ async def get_my_contract_bids(
         ]
     return compact_bids
 
-@router.post("/create-contract", tags=["Contracts"])
+@router.post("/create-contract", tags=["Contracts", "Proposer"])
 async def create_contract(
     request: Request, 
     response: Response,
@@ -166,7 +166,7 @@ async def create_contract(
         await session.refresh(new_contract)
     return {"contractID": new_contract.contractID, "title": new_contract.title}
 
-@router.get("/{contract_id}", tags=["Contracts"])
+@router.get("/{contract_id}", tags=["Contracts", "Proposer", "Courier"])
 async def get_contract(
     contract_id: int, 
     request: Request, 
@@ -214,7 +214,7 @@ async def get_contract(
             retstruct["bids"] = [bid.bidID for bid in bids if bid.bidderID == user]
         return retstruct
 
-@router.post("/{contract_id}/update-contract", tags=["Contracts"])
+@router.post("/{contract_id}/update-contract", tags=["Contracts", "Proposer"])
 async def update_contract(
     contract_id: int,
     request: Request, 
@@ -226,7 +226,7 @@ async def update_contract(
     '''
     return
 
-@router.post("/{contract_id}/delete-contract", tags=["Contracts"])
+@router.post("/{contract_id}/delete-contract", tags=["Contracts", "Proposer"])
 async def delete_contract(
     contract_id: int,
     request: Request, 
@@ -234,44 +234,13 @@ async def delete_contract(
     _auth: None=Depends(auth.check_and_renew_access_token)):
     '''
     Deletes an existing contract.
+    ONLY WORKS IF CONTRACT STATUS IS OPEN.
     NOT YET IMPLEMENTED
     '''
     return
 
 
-@router.get("/{contract_id}/{bid_id}", tags=["Bids"])
-async def get_contract_bid(
-    contract_id: int, 
-    bid_id: int, 
-    request: Request, 
-    response: Response, 
-    _auth: None=Depends(auth.check_and_renew_access_token)
-    ):
-    '''Returns the details of a specific contract bid.'''
-    user = auth.get_current_user(request)['sub']
-    async with database.AsyncSessionLocalFactory() as session:
-        bid = await session.execute(
-            select(database.Bid).where(
-            database.Bid.contractID == contract_id,
-            database.Bid.bidID == bid_id
-            )
-        )
-        bid: database.Bid = bid.scalars().first()
-        if not bid:
-            response.status_code = 404
-            return {"detail": "Bid not found"}
-
-        return {
-            "bidID": bid.bidID,
-            "contractID": bid.contractID,
-            "bidderID": bid.bidderID,
-            "floorPrice": bid.bidFloorPrice,
-            "incentives": bid.incentives,
-            "timestamp": bid.bidTime
-        }
-    return
-
-@router.post("/{contract_id}/create-contract-bid", tags=["Bids"])
+@router.post("/{contract_id}/accept-contract", tags=["Contracts", "Courier"])
 async def create_contract_bid(
     contract_id: int,
     base_price: int,
@@ -314,17 +283,3 @@ async def create_contract_bid(
         await session.commit()
         await session.refresh(new_bid)
     return {"bidID": new_bid.bidID, "contractID": new_bid.contractID}
-
-@router.post("/{contract_id}/{bid_id}/delete-contract-bid", tags=["Bids"])
-async def delete_contract_bid(
-    contract_id: int,
-    bid_id: int,
-    request: Request, 
-    response: Response, 
-    _auth: None=Depends(auth.check_and_renew_access_token)
-    ):
-    '''
-    Deletes a contract bid.
-    '''
-
-    return

@@ -19,9 +19,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 router = APIRouter()
 
-# TODO: Fake in-memory user storage for now (replace with DB later)
-db_users = {}
-
 # Convenience helpers
 
 def hash_password(password: str) -> str:
