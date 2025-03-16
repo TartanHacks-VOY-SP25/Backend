@@ -30,8 +30,22 @@ async def get_open_contracts(
     open_contracts:List[database.Contract] = open_contracts.scalars().all()
     compact_contracts = [
         {
-            "contract_id": contract.contract_id,
+            # "contract_id": contract.contract_id,
+            # "title": contract.contract_title,
+
+            "contract_id":  contract.contract_id,
+            "proposer_id":  contract.proposer_id,
+            "courier_id":   contract.courier_id,
+            "contract_award_time": contract.contract_award_time,
+            "contract_completion_time": contract.contract_completion_time,
+            "contract_timeout": contract.contract_timeout,
+            "contractStatus": contract.contract_status,
+            "required_collateral": contract.required_collateral,
+            "base_price": contract.base_price,
+            "t1_bonus": contract.t1_bonus,
+            "t2_bonus": contract.t2_bonus,
             "title": contract.contract_title,
+            "description": contract.contract_description,
         } for contract in open_contracts
     ]
     return compact_contracts
@@ -96,8 +110,21 @@ async def get_my_contract_requests(
     user_contracts:List[database.Contract] = user_contracts.scalars().all()
     compact_contracts = [
         {
-            "contract_id": contract.contract_id,
+            # "contract_id": contract.contract_id,
+            # "title": contract.contract_title,
+                        "contract_id":  contract.contract_id,
+            "proposer_id":  contract.proposer_id,
+            "courier_id":   contract.courier_id,
+            "contract_award_time": contract.contract_award_time,
+            "contract_completion_time": contract.contract_completion_time,
+            "contract_timeout": contract.contract_timeout,
+            "contractStatus": contract.contract_status,
+            "required_collateral": contract.required_collateral,
+            "base_price": contract.base_price,
+            "t1_bonus": contract.t1_bonus,
+            "t2_bonus": contract.t2_bonus,
             "title": contract.contract_title,
+            "description": contract.contract_description,
         } for contract in user_contracts
     ]
     return compact_contracts
@@ -124,8 +151,24 @@ async def get_my_contract_deliveries(
 
         compact_bids = [
             {
-            "contract_id": contract.contract_id,
+            # "contract_id": contract.contract_id,
+            # "title": contract.contract_title,
+
+                        "contract_id":  contract.contract_id,
+            "proposer_id":  contract.proposer_id,
+            "courier_id":   contract.courier_id,
+            "contract_award_time": contract.contract_award_time,
+            "contract_completion_time": contract.contract_completion_time,
+            "contract_timeout": contract.contract_timeout,
+            "contractStatus": contract.contract_status,
+            "required_collateral": contract.required_collateral,
+            "base_price": contract.base_price,
+            "t1_bonus": contract.t1_bonus,
+            "t2_bonus": contract.t2_bonus,
             "title": contract.contract_title,
+            "description": contract.contract_description,
+
+
             } for contract in user_deliveries
         ]
     return compact_bids
@@ -469,6 +512,9 @@ async def complete_contract(
         )
         contract: database.Contract = contract.scalars().first()
 
+        
+
+
         # check if contract exists and is in fulfillment
         if not contract:
             response.status_code = 404
@@ -532,30 +578,40 @@ async def complete_contract(
         
         # 0 means return collateral to the courier, 1 means give the courier's collateral to the proposer
         collateral_status = 0
-        if (sensor_data.drop_alerts <= 2):
-            # great performance, 
+        if(sensor_data):
+            # if we have sensor data
+            if (sensor_data.drop_alerts <= 2):
+                # great performance, 
+                await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
+                                [contract.base_lock, contract.t1_lock, contract.t2_lock],
+                                [contract.base_key, contract.t1_key, contract.t2_key], 
+                                proposer_details.wallet_number, 
+                                3)
+            elif (2 < sensor_data.drop_alerts <= 4):
+                # lose tier 2, only get tier 1 and base
+                await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
+                                [contract.base_lock, contract.t1_lock, contract.t2_lock],
+                                [contract.base_key, contract.t1_key, contract.t2_key], 
+                                proposer_details.wallet_number, 
+                                2)
+            elif (4 < sensor_data.drop_alerts <= 6):
+                # only get base
+                await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
+                                [contract.base_lock, contract.t1_lock, contract.t2_lock],
+                                [contract.base_key, contract.t1_key, contract.t2_key], 
+                                proposer_details.wallet_number, 
+                                1)
+            elif (6 < sensor_data.drop_alerts):
+                # lose collateral if too many drops
+                collateral_status = 1
+        else:
+            # default to full payout
             await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
-                            [contract.base_lock, contract.t1_lock, contract.t2_lock],
-                            [contract.base_key, contract.t1_key, contract.t2_key], 
-                            proposer_details.wallet_number, 
-                            3)
-        elif (2 < sensor_data.drop_alerts <= 4):
-            # lose tier 2, only get tier 1 and base
-            await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
-                            [contract.base_lock, contract.t1_lock, contract.t2_lock],
-                            [contract.base_key, contract.t1_key, contract.t2_key], 
-                            proposer_details.wallet_number, 
-                            2)
-        elif (4 < sensor_data.drop_alerts <= 6):
-            # only get base
-            await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
-                            [contract.base_lock, contract.t1_lock, contract.t2_lock],
-                            [contract.base_key, contract.t1_key, contract.t2_key], 
-                            proposer_details.wallet_number, 
-                            1)
-        elif (6 < sensor_data.drop_alerts):
-            # lose collateral if too many drops
-            collateral_status = 1
+                                [contract.base_lock, contract.t1_lock, contract.t2_lock],
+                                [contract.base_key, contract.t1_key, contract.t2_key], 
+                                proposer_details.wallet_number, 
+                                3)
+
 
         if(collateral_status):
             await xrp.finish_contract([contract.collateral_txn_id],
@@ -570,15 +626,17 @@ async def complete_contract(
             )
 
         # Wipes the sensor data entry
-        sensor_data.drop_alerts = 0
-        sensor_data.overtemp_alerts = 0
-        sensor_data.water_events = 0
-        sensor_data.longitude = 0
-        sensor_data.latitude = 0
+        if(sensor_data):
+            sensor_data.drop_alerts = 0
+            sensor_data.overtemp_alerts = 0
+            sensor_data.water_events = 0
+            sensor_data.longitude = 0
+            sensor_data.latitude = 0
+            session.add(sensor_data)
+
 
         # commit entry back to database
         session.add(contract)
-        session.add(sensor_data)
         await session.commit()
         await session.refresh(contract)
         
