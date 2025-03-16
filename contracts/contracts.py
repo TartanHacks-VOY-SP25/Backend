@@ -159,6 +159,7 @@ async def create_contract(
             courier_id                  =   None,
             contract_award_time         =   None,
             contract_completion_time    =   None,
+            contract_confirm_completion =   None,
             contract_timeout            =   required_completion_time,
             contract_status             =   database.ContractStatus.OPEN,
             required_collateral         =   collateral,
@@ -374,3 +375,82 @@ async def accept_contract(
             "contract_status": contract.contract_status,
             "contract_award_time": contract.contract_award_time,
         })
+
+@router.post("/{contract_id}/complete-contract", tags=["Contracts", "Courier", "Proposer"])
+async def complete_contract(
+    contract_id: int,
+    request: Request,
+    response: Response,
+    _auth: None=Depends(auth.check_and_renew_access_token)
+    ):
+    '''
+    API for when a contract is completed.
+    Only works if contract status is FULFILLMENT.
+    Finishes the contract, and releases the fund locks.
+    Both the proposer and the courier have to agree to the completion. 
+    '''
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        contract = await session.execute(
+            select(database.Contract).where(
+                (database.Contract.contract_id == contract_id) &
+                (database.Contract.contract_status == database.ContractStatus.FULFILLMENT)
+            )
+        )
+        contract: database.Contract = contract.scalars().first()
+
+        # check if contract exists and is in fulfillment
+        if not contract:
+            response.status_code = 404
+            return {"detail": "Contract not found or not in fulfillment"}
+
+        # check if user is the proposer or courier
+        if contract.proposer_id != user and contract.courier_id != user:
+            response.status_code = 403
+            return {"detail": "User is not the proposer or courier"}
+
+        # if the user is the courier and the contract is not completed yet
+        if contract.courier_id == user and contract.contract_completion_time is None:
+            # Courier is the first user to mark the contract as completed
+            contract.contract_completion_time = datetime.now(timezone.utc)
+            return {'detail': "Courier has marked contract as completed, waiting for proposer to confirm"}
+
+        # if the user is the courier and the contract is already completed, error
+        elif contract.courier_id == user and contract.contract_completion_time is not None:
+            response.status_code = 403
+            return {"detail": "Courier has already marked contract as completed"}
+
+        # if the user is the proposer and the contract is not completed yet, error
+        elif contract.proposer_id == user and contract.contract_completion_time is None:
+            response.status_code = 403
+            return {"detail": "Courier has not marked contract as completed yet"}
+
+        # if the user is the proposer and the courier has already marked the contract as completed
+        # proposer is confirming the completion
+        contract.contract_confirm_completion = datetime.now(timezone.utc)
+        contract.contract_status = database.ContractStatus.COMPLETED
+
+        # TODO: XRP INTEGRATION HERE.
+        # 1. Query the sensor table in the db to calculate the delivery score
+        # 2. Release the locks on the XRP network based on calculated delivery score 
+
+        # commit entry back to database
+        session.add(contract)
+        await session.commit()
+        await session.refresh(contract)
+
+    # return the contract id and the updated fields
+    return ({
+        "contract_id": contract.contract_id,
+        "proposer_id": contract.proposer_id,
+        "courier_id": contract.courier_id,
+        "contract_status": contract.contract_status,
+        "contract_completion_time": contract.contract_completion_time,
+        "contract_confirm_completion": contract.contract_confirm_completion,
+    })
+
+
+
+# TODO: functionality to complete a contract
+# TODO: functionality to mark a contract as failed
+# TODO: functionality to delete a contract that is in fulfillment and return funds to both parties only if both parties agree

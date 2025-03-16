@@ -75,6 +75,7 @@ class Contract(Base):
     # Timestamps and status
     contract_award_time         = Column(DateTime, nullable=True, index=True)
     contract_completion_time    = Column(DateTime, nullable=True, index=True)
+    contract_confirm_completion = Column(DateTime, nullable=True, index=True)
     contract_timeout            = Column(DateTime, index=True)
     contract_status             = Column(Enum(ContractStatus), nullable=False, index=True)
 

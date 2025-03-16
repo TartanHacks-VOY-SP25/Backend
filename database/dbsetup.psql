@@ -26,6 +26,7 @@ CREATE TABLE contracts (
     courier_id VARCHAR,
     contract_award_time TIMESTAMP,
     contract_completion_time TIMESTAMP,
+    contract_confirm_completion TIMESTAMP,
     contract_timeout TIMESTAMP NOT NULL,
     -- contract_status can be OPEN, FULFILLMENT, COMPLETED, or FAILED
     contract_status VARCHAR NOT NULL,
