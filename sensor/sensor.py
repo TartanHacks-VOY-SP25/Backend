@@ -7,6 +7,7 @@ from datetime import timezone
 from fastapi.exceptions import HTTPException
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
+from starlette import status
 
 from auth import auth
 from database import database
@@ -54,6 +55,20 @@ async def sensor_data(payload: SensorPayload):
 
         if not user_sensor_record:
             raise HTTPException(status_code=400, detail="Sensor not registered. Please call register_sensor first.")
+        
+        # Check if the sensor is associated with an open contract.
+        result = await session.execute(
+            select(database.Contract).where(
+                database.Sensor.sensor_id == sensor_id_str &
+                database.Contract.contract_status == database.ContractStatus.FULFILLMENT 
+            )
+        )
+        in_progress_contract = result.scalars().all()
+        if not in_progress_contract:
+            raise HTTPException(
+                status_code=status.HTTP_412_PRECONDITION_FAILED,
+                detail="Sensor not associated with an in progress contract."
+            )
 
         # Next, try to retrieve an existing sensor_data record.
         result = await session.execute(

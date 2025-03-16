@@ -474,6 +474,15 @@ async def complete_contract(
             response.status_code = 404
             return {"detail": "Contract not found or not in fulfillment"}
 
+        sensor_data_entry = await session.execute(
+            select(database.SensorData).where(
+                database.SensorData.sensor_id == contract.sensor_id
+            )
+        )
+        sensor_data: database.SensorData = sensor_data_entry.scalars().first()
+        if not sensor_data:
+            print("No sensor data found...")
+
         # check if user is the proposer or courier
         if contract.proposer_id != user and contract.courier_id != user:
             response.status_code = 403
@@ -517,19 +526,36 @@ async def complete_contract(
         )
         courier_details: database.User = courier_details.scalars().first()
 
-        # TODO: XRP INTEGRATION HERE.
-        # 1. Query the sensor table in the db to calculate the delivery score
-        # 2. Release the locks on the XRP network based on calculated delivery score 
 
+        # TODO: Use the sensor data here to finish the contract / return collat. conditionally
         #1,2,3 as last arg mean base, t1 incentive, t2 incentive respectively
-        await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
-                        [contract.base_lock, contract.t1_lock, contract.t2_lock],
-                        [contract.base_key, contract.t1_key, contract.t2_key], 
-                        proposer_details.wallet_number, 
-                        2)
-
+        
         # 0 means return collateral to the courier, 1 means give the courier's collateral to the proposer
         collateral_status = 0
+        if sensor_data.drop_alerts <= 2:
+            await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
+                            [contract.base_lock, contract.t1_lock, contract.t2_lock],
+                            [contract.base_key, contract.t1_key, contract.t2_key], 
+                            proposer_details.wallet_number, 
+                            3)
+        elif (2 < sensor_data.drop_alerts <= 4):
+            # lose tier 2
+            await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
+                            [contract.base_lock, contract.t1_lock, contract.t2_lock],
+                            [contract.base_key, contract.t1_key, contract.t2_key], 
+                            proposer_details.wallet_number, 
+                            2)
+        elif (4 < sensor_data.drop_alerts <= 6):
+            # only get base
+            await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
+                            [contract.base_lock, contract.t1_lock, contract.t2_lock],
+                            [contract.base_key, contract.t1_key, contract.t2_key], 
+                            proposer_details.wallet_number, 
+                            1)
+        elif (6 < sensor_data.drop_alerts):
+            # lose collateral
+            collateral_status = 1
+
         if(collateral_status):
             await xrp.finish_contract([contract.collateral_txn_id],
                             [contract.collateral_lock],
@@ -541,6 +567,9 @@ async def complete_contract(
                 courier_details.wallet_number,
                 int(contract.collateral_txn_id)
             )
+
+        # Wipes the sensor data entry
+
 
         # commit entry back to database
         session.add(contract)
