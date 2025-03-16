@@ -42,7 +42,13 @@ async def finish_contract(sequences : list, conditions : list, fulfillments : li
 
         stxn_result = txn_response.result
 
-async def create_escrow(source_acc_num: str, dest_acc_num : str, payment_amt : list, expire_time=datetime.now() + timedelta(days=5)):
+async def create_escrow(
+        source_acc_num: str, 
+        dest_acc_num : str,
+        payment_amt : list,
+        is_collateral_escrow: bool, 
+        expire_time=datetime.now() + timedelta(days=5)
+    ):
     client = JsonRpcClient("https://s.altnet.rippletest.net:51234") # Connect to client
     sequences = []
     conditions = []
@@ -50,6 +56,7 @@ async def create_escrow(source_acc_num: str, dest_acc_num : str, payment_amt : l
 
     for amount_to_escrow in payment_amt:
         claim_date = datetime_to_ripple_time(datetime.now() + timedelta(seconds=10))
+        cancel_after_time = datetime_to_ripple_time(datetime.now() + timedelta(seconds=15))
 
         expiry_date = datetime_to_ripple_time(expire_time)
 
@@ -67,13 +74,24 @@ async def create_escrow(source_acc_num: str, dest_acc_num : str, payment_amt : l
         sender_wallet = Wallet.from_seed(seed=source_acc_num, algorithm=CryptoAlgorithm.ED25519)
         source_addr = sender_wallet.address
         print(f"dest acc num {dest_acc_num}")
-        create_txn = EscrowCreate(
-            account=source_addr,
-            amount=xrp_to_drops(int(amount_to_escrow)), 
-            destination=dest_acc_num,
-            finish_after=claim_date, 
-            cancel_after=expiry_date,
-            condition=condition)
+
+        create_txn = None
+        if is_collateral_escrow:
+            create_txn = EscrowCreate(
+                account=source_addr,
+                amount=xrp_to_drops(int(amount_to_escrow)), 
+                destination=dest_acc_num,
+                finish_after=claim_date, 
+                cancel_after=cancel_after_time,
+                condition=condition)
+        else:
+            create_txn = EscrowCreate(
+                account=source_addr,
+                amount=xrp_to_drops(int(amount_to_escrow)), 
+                destination=dest_acc_num,
+                finish_after=claim_date, 
+                cancel_after=expiry_date,
+                condition=condition)
 
         txn_response = await async_submit_and_wait(create_txn, client, sender_wallet)
 

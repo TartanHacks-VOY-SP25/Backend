@@ -406,6 +406,7 @@ async def accept_contract(
             proposer_details.wallet_number, 
             courier_details.wallet_address, 
             [contract.base_price, contract.t1_bonus, contract.t2_bonus], 
+            False,
             contract.contract_timeout
         )
 
@@ -413,6 +414,7 @@ async def accept_contract(
             courier_details.wallet_number, 
             proposer_details.wallet_address, 
             [contract.required_collateral], 
+            True,
             contract.contract_timeout
         )
 
