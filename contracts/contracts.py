@@ -6,6 +6,7 @@ from sqlalchemy import DateTime
 from datetime import datetime, timezone
 import pytz
 from typing import List
+import xrpledger.smart_contracts as xrp
 
 router = APIRouter()
 
@@ -239,6 +240,7 @@ async def get_contract(
 async def update_contract(
     contract_id: int,
     new_base_price: int,
+    new_collateral: int,
     new_t1_incentive: int,
     new_t2_incentive: int,
     new_timeout: str,
@@ -276,6 +278,7 @@ async def update_contract(
         contract.base_price = new_base_price
         contract.t1_bonus = new_t1_incentive
         contract.t2_bonus = new_t2_incentive
+        contract.required_collateral = new_collateral
 
         contract.contract_timeout = dt
         contract.contract_title = new_title
@@ -333,17 +336,6 @@ async def accept_contract(
     '''
 
     user = auth.get_current_user(request)['sub']
-
-    # TODO: XRP INTEGRATION HERE - NEED TO CREATE ESCROWS.
-    TESTING_base_lock = "0x0"
-    TESTING_t1_lock = "0x0"
-    TESTING_t2_lock = "0x0"
-    TESTING_collateral_lock = "0x0"
-    TESTING_base_key = "0x0"
-    TESTING_t1_key = "0x0"
-    TESTING_t2_key = "0x0"
-    TESTING_collateral_key = "0x0"
-
     async with database.AsyncSessionLocalFactory() as session:
         contract = await session.execute(
             select(database.Contract).where(
@@ -369,6 +361,7 @@ async def accept_contract(
         )
         sensor_in_use: database.Contract = sensor_in_use.scalars().first()
         
+        
         if not contract:
             response.status_code = 404
             return {"detail": "Contract not found or not open."}
@@ -381,7 +374,6 @@ async def accept_contract(
             response.status_code = 404
             return {"detail": "Sensor currently in use for other contract."}
 
-        sensor: database.Sensor = sensor.scalars().first()
 
         # modify the contract to set the courier, sensor, and status
         contract.courier_id = user
@@ -389,15 +381,48 @@ async def accept_contract(
         contract.contract_status = database.ContractStatus.FULFILLMENT.value
         contract.contract_award_time = datetime.now(timezone.utc)
 
+        # get xrp details for proposer and courier
+        proposer_details = await session.execute(
+            select(database.User).where(
+                database.User.user_id == contract.proposer_id
+            )
+        )
+        proposer_details: database.User = proposer_details.scalars().first()
+
+        courier_details = await session.execute(
+            select(database.User).where(
+                database.User.user_id == user
+            )
+        )
+        courier_details: database.User = courier_details.scalars().first()
+
+        [sequences, conditions, fulfillments] = await xrp.create_escrow(
+            proposer_details.wallet_number, 
+            courier_details.wallet_address, 
+            [contract.base_price, contract.t1_bonus, contract.t2_bonus], 
+            contract.contract_timeout
+        )
+
+        [collateral_txid, collateral_lock, collateral_key] = await xrp.create_escrow(
+            courier_details.wallet_number, 
+            proposer_details.wallet_address, 
+            [contract.required_collateral], 
+            contract.contract_timeout
+        )
+
         # set the locks and keys in the database
-        contract.base_lock = TESTING_base_lock
-        contract.t1_lock = TESTING_t1_lock
-        contract.t2_lock = TESTING_t2_lock
-        contract.collateral_lock = TESTING_collateral_lock
-        contract.base_key = TESTING_base_key
-        contract.t1_key = TESTING_t1_key
-        contract.t2_key = TESTING_t2_key
-        contract.collateral_key = TESTING_collateral_key
+        contract.base_txn_id        = str(sequences[0])
+        contract.t1_txn_id          = str(sequences[1])
+        contract.t2_txn_id          = str(sequences[2])
+        contract.collateral_txn_id  = str(collateral_txid[0])
+        contract.base_lock          = conditions[0]
+        contract.t1_lock            = conditions[1]
+        contract.t2_lock            = conditions[2]
+        contract.collateral_lock    = collateral_lock[0]
+        contract.base_key           = fulfillments[0]
+        contract.t1_key             = fulfillments[1]
+        contract.t2_key             = fulfillments[2]
+        contract.collateral_key     = collateral_key[0]
 
         # commit entry back to database
         session.add(contract)

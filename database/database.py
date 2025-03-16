@@ -87,14 +87,19 @@ class Contract(Base):
     t2_bonus                = Column(Float, nullable=False, index=True)
 
     # Escrow keys
-    base_lock       = Column(String)
-    t1_lock         = Column(String)
-    t2_lock         = Column(String)
-    collateral_lock = Column(String)
-    base_key        = Column(String)
-    t1_key          = Column(String)
-    t2_key          = Column(String)
-    collateral_key  = Column(String)
+    base_lock           = Column(String)
+    t1_lock             = Column(String)
+    t2_lock             = Column(String)
+    collateral_lock     = Column(String)
+    base_key            = Column(String)
+    t1_key              = Column(String)
+    t2_key              = Column(String)
+    collateral_key      = Column(String)
+    base_txn_id         = Column(String)
+    t1_txn_id           = Column(String)
+    t2_txn_id           = Column(String)
+    collateral_txn_id   = Column(String)
+
 
     # Sensor
     sensor_id = Column(
