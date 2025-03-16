@@ -16,6 +16,8 @@ CREATE TABLE sensor_data (
     drop_alerts INTEGER NOT NULL,
     overtemp_alerts INTEGER NOT NULL,
     water_events INTEGER NOT NULL,
+    longitude REAL NOT NULL,
+    latitude REAL NOT NULL,
     FOREIGN KEY (sensor_id) REFERENCES user_sensors(sensor_id)
 );
 
