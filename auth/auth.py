@@ -10,6 +10,8 @@ from sqlalchemy.future import select
 from passlib.context import CryptContext
 from database import database
 from jose import JWTError, jwt
+from typing import List
+from xrpledger import create_account
 
 # Constants
 # TODO: REPLACE WITH ENV VARS
@@ -113,15 +115,22 @@ async def register(username: str, password: str):
             raise HTTPException(status_code=400, detail="User already exists")
         else:
             # TODO: XRP INTEGRATION HERE
+            xrp_wallet = await create_account.create_account()
+            xrp_acc_num  = xrp_wallet.seed
+            xrp_acc_addr = xrp_wallet.address
             new_user = database.User(
                 user_id=username,
                 hashed_password=hash_password(password),
-                wallet_number="0x0",
-                wallet_address="0x0",
+                wallet_number=xrp_acc_num,
+                wallet_address=xrp_acc_addr,
             )
             session.add(new_user)
             await session.commit()
-    return {"message": "User registered successfully"}
+    return {
+        "message": "User registered successfully",
+        "XRP Wallet Address": xrp_acc_addr,
+        "XRP Seed (ONLY AVAILABLE ONCE)": xrp_acc_num
+    }
 
 
 @router.post("/login", tags=["Authentication"])
