@@ -59,7 +59,7 @@ async def sensor_data(payload: SensorPayload):
         # Check if the sensor is associated with an open contract.
         result = await session.execute(
             select(database.Contract).where(
-                database.Sensor.sensor_id == sensor_id_str &
+                database.Sensor.sensor_id == sensor_id_str and
                 database.Contract.contract_status == database.ContractStatus.FULFILLMENT 
             )
         )
