@@ -81,18 +81,19 @@ def get_current_user(request: Request):
 # Routes
 @router.post("/register", tags=["Authentication"])
 async def register(username: str, password: str):
-    '''Registers a new user.'''
-    print("HERE")
+    """Registers a new user."""
     async with database.AsyncSessionLocalFactory() as session:
-        user_ids = await session.execute(select(database.User.userID))
+        user_ids = await session.execute(select(database.User.user_id))
         user_ids: List[database.User] = user_ids.scalars().all()
         if username in user_ids:
             raise HTTPException(status_code=400, detail="User already exists")
         else:
-            # create a new user and commit it to the database
+            # TODO: XRP INTEGRATION HERE
             new_user = database.User(
-                userID=username,
-                hashed_password=hash_password(password)
+                user_id=username,
+                hashed_password=hash_password(password),
+                wallet_number="0x0",
+                wallet_address="0x0",
             )
             session.add(new_user)
             await session.commit()

@@ -16,28 +16,28 @@ async def get_open_contracts(
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)):
     '''
-    Returns a list of open contracts in a compacted form.
+    Returns a list of all open contracts in a compacted form.
     Compacted == just ID and title.
     '''
     async with database.AsyncSessionLocalFactory() as session:
         open_contracts = await session.execute(
             select(database.Contract).where(
-                database.Contract.contractStatus == database.ContractStatus.OPEN
+                database.Contract.contract_status == database.ContractStatus.OPEN
             )
         )
-        
+
     open_contracts:List[database.Contract] = open_contracts.scalars().all()
     compact_contracts = [
         {
-            "contractID": contract.contractID,
-            "title": contract.title,
+            "contractID": contract.contract_id,
+            "title": contract.contract_title,
         } for contract in open_contracts
     ]
     return compact_contracts
 
 @router.get("/my-contracts-all", tags=["Contracts", "Proposer", "Courier"])
 async def get_my_contracts(
-    request: Request, 
+    request: Request,
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)
     ):
@@ -47,30 +47,26 @@ async def get_my_contracts(
     Returns in compact form (ID, Title)
     '''
     user = auth.get_current_user(request)['sub']
+    user_contracts: List[database.Contract] = []
     async with database.AsyncSessionLocalFactory() as session:
-        user_contracts = await session.execute(
+        # get contracts that user proposed
+        user_proposed = await session.execute(
             select(database.Contract).where(
-                (database.Contract.proposerID == user) 
+                (database.Contract.proposer_id == user)
             )
         )
 
-        # get users bids, and then use embedded contractID to get the contracts those bids are associated with
-        user_bids = await session.execute(
-            select(database.Bid).where(
-            database.Bid.bidderID == user
-            )
-        )
-        user_bids: List[database.Bid] = user_bids.scalars().all()
-        bid_contract_ids = [bid.contractID for bid in user_bids]
-
-        bid_contracts = await session.execute(
+        # get contracts that user accepted (to be the courier)
+        user_accepted = await session.execute(
             select(database.Contract).where(
-            database.Contract.contractID.in_(bid_contract_ids)
+                database.Contract.courier_id == user
             )
         )
-        bid_contracts: List[database.Contract] = bid_contracts.scalars().all()
-    user_contracts = user_contracts.scalars().all()
-    user_contracts.extend(bid_contracts)
+
+        user_proposed: List[database.Contract] = user_proposed.scalars().all()
+        user_accepted: List[database.Contract] = user_accepted.scalars().all()
+        user_contracts = user_proposed + user_accepted
+
     compact_contracts = [
         {
             "contractID": contract.contractID,
@@ -81,85 +77,105 @@ async def get_my_contracts(
 
 @router.get("/my-contract-requests", tags=["Contracts", "Proposer"])
 async def get_my_contract_requests(
-    request: Request, 
+    request: Request,
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)):
-    '''Returns a list of all contract requests affiliated with the current user.'''
+    '''
+    Returns a list of all contract requests affiliated with the current user.
+    ie. Contracts that the user has proposed.
+    '''
+
     user = auth.get_current_user(request)['sub']
     async with database.AsyncSessionLocalFactory() as session:
         user_contracts = await session.execute(
             select(database.Contract).where(
-                (database.Contract.proposerID == user) 
+                (database.Contract.proposerID == user)
             )
         )
     user_contracts:List[database.Contract] = user_contracts.scalars().all()
     compact_contracts = [
         {
-            "contractID": contract.contractID,
-            "title": contract.title,
+            "contractID": contract.contract_id,
+            "title": contract.contract_title,
         } for contract in user_contracts
     ]
     return compact_contracts
 
 @router.get("/my-contract-deliveries", tags=["Contracts", "Courier"])
 async def get_my_contract_deliveries(
-    request: Request, 
+    request: Request,
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)):
-    '''Returns a list of all contracts the current user has placed a bid on.'''
+    '''
+    Returns a list of all contracts the current user has accepted to deliver.
+    ie.. Contracts that the user is the courier for.
+    Returns in compact form (ID, Title)
+    '''
     user = auth.get_current_user(request)['sub']
 
     async with database.AsyncSessionLocalFactory() as session:
-        user_bids = await session.execute(
-                select(database.Bid).where(
-                database.Bid.bidderID == user
-                )
-            )
-        user_bids: List[database.Bid] = user_bids.scalars().all()
-        bidded_contract_ids = [bid.contractID for bid in user_bids]
-
-        # query contracts table with contract IDs in bidded_contract_ids
-        bidded_contracts = await session.execute(
+        user_deliveries = await session.execute(
             select(database.Contract).where(
-            database.Contract.contractID.in_(bidded_contract_ids)
+                database.Contract.courier_id == user
             )
         )
-        bidded_contracts: List[database.Contract] = bidded_contracts.scalars().all()
+        user_deliveries: List[database.Contract] = user_deliveries.scalars().all()
 
         compact_bids = [
             {
             "contractID": contract.contractID,
             "title": contract.title,
-            } for contract in bidded_contracts
+            } for contract in user_deliveries
         ]
     return compact_bids
 
 @router.post("/create-contract", tags=["Contracts", "Proposer"])
 async def create_contract(
-    request: Request, 
+    request: Request,
     response: Response,
-    biddingExpiryTime: str,
-    bidSelectionExpiryTime: str,
     title: str,
     desc: str,
-    _auth: None=Depends(auth.check_and_renew_access_token)):
+    required_completion_time: str,
+    collateral: int,
+    base_price: int,
+    t1_incentive: int,
+    t2_incentive: int,
+    _auth: None=Depends(auth.check_and_renew_access_token)
+    ):
     '''
     Creates a new contract.
-    Expects timestamps in "%Y-%m-%dT%H:%M:%S" format.
+    Expects timeout timestamp in "%Y-%m-%dT%H:%M:%S" format.
     '''
-    
+
     user = auth.get_current_user(request)['sub']
     async with database.AsyncSessionLocalFactory() as session:
-        bidding_expiry_time = datetime.strptime(biddingExpiryTime, "%Y-%m-%dT%H:%M:%S")
-        bid_selection_expiry_time = datetime.strptime(bidSelectionExpiryTime, "%Y-%m-%dT%H:%M:%S")
+        required_completion_time = datetime.strptime(
+            required_completion_time,
+            "%Y-%m-%dT%H:%M:%S"
+        )
 
         new_contract = database.Contract(
-            proposerID=user,
-            biddingExpiryTime=bidding_expiry_time,
-            biddingSelectionExpiryTime=bid_selection_expiry_time,
-            title=title,
-            description=desc,
-            contractStatus=database.ContractStatus.OPEN
+            proposer_id                 =   user,
+            courier_id                  =   None,
+            contract_award_time         =   None,
+            contract_completion_time    =   None,
+            contract_timeout            =   required_completion_time,
+            contract_status             =   database.ContractStatus.OPEN,
+            required_collateral         =   collateral,
+            base_price                  =   base_price,
+            t1_bonus                    =   t1_incentive,
+            t2_bonus                    =   t2_incentive,
+            base_lock                   =   None,
+            t1_lock                     =   None,
+            t2_lock                     =   None,
+            collateral_lock             =   None,
+            base_key                    =   None,
+            t1_key                      =   None,
+            t2_key                      =   None,
+            collateral_key              =   None,
+            sensor_id                   =   None,
+            contract_title              =   title,
+            contract_desc               =   desc,
         )
         session.add(new_contract)
         await session.commit()
@@ -168,22 +184,28 @@ async def create_contract(
 
 @router.get("/{contract_id}", tags=["Contracts", "Proposer", "Courier"])
 async def get_contract(
-    contract_id: int, 
-    request: Request, 
+    contract_id: int,
+    request: Request,
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)
     ):
     '''
     Returns all details of a specific contract.
-    If requested by the owner of this contract (the payer),
-    all affiliated bid Ids will be returned. If requested by anyone else,
-    only bids submitted by that user will be returned. 
+    Contract has to be open, or the user has to be the proposer / courier.
     '''
     user = auth.get_current_user(request)['sub']
     async with database.AsyncSessionLocalFactory() as session:
         contract = await session.execute(
             select(database.Contract).where(
-            database.Contract.contractID == contract_id
+                (database.Contract.contract_id == contract_id) &
+                (
+                    (
+                        database.Contract.contract_status == database.ContractStatus.OPEN
+                    ) | (
+                        (database.Contract.proposer_id == user) |
+                        (database.Contract.courier_id == user)
+                    )
+                )
             )
         )
         contract:database.Contract = contract.scalars().first()
@@ -192,71 +214,125 @@ async def get_contract(
             return {"detail": "Contract not found"}
 
         retstruct = {
-            "contractID": contract.contractID,
-            "proposerID": contract.proposerID,
-            "biddingExpiryTime": contract.biddingExpiryTime,
-            "biddingSelectionExpiryTime": contract.biddingSelectionExpiryTime,
+            "contract_id":  contract.contract_id,
+            "proposer_id":  contract.proposer_id,
+            "courier_id":   contract.courier_id,
+            "contract_award_time": contract.contract_award_time,
+            "contract_completion_time": contract.contract_completion_time,
+            "contract_timeout": contract.contract_timeout,
+            "contractStatus": contract.contractStatus,
+            "required_collateral": contract.required_collateral,
+            "base_price": contract.base_price,
+            "t1_bonus": contract.t1_bonus,
+            "t2_bonus": contract.t2_bonus,
             "title": contract.title,
             "description": contract.description,
-            "contractStatus": contract.contractStatus
         }
-        # query bids table for all affiliated bids, and if requestor is proposer
-        # return all of them. If requestor is a bidder, return only theirs.
-        bids = await session.execute(
-            select(database.Bid).where(
-                database.Bid.contractID == contract_id
-            )
-        )
-        bids: List[database.Bid] = bids.scalars().all()
-        if contract.proposerID == user:
-            retstruct["bids"] = [bid.bidID for bid in bids]
-        else:
-            retstruct["bids"] = [bid.bidID for bid in bids if bid.bidderID == user]
         return retstruct
 
 @router.post("/{contract_id}/update-contract", tags=["Contracts", "Proposer"])
 async def update_contract(
     contract_id: int,
-    request: Request, 
-    response: Response, 
+    new_base_price: int,
+    new_t1_incentive: int,
+    new_t2_incentive: int,
+    new_timeout: str,
+    new_title: str,
+    new_desc: str,
+    request: Request,
+    response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)):
     '''
-    Tries to update an existing contract.
-    NOT YET IMPLEMENTED
+    Tries to update an existing contract's pricing structure.
+    ONLY WORKS IF CONTRACT STATUS IS OPEN.
+    ONLY WORKS IF USER IS PROPOSER.
     '''
-    return
+
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        contract = await session.execute(
+            select(database.Contract).where(
+                (database.Contract.contract_id == contract_id) &
+                (database.Contract.proposer_id == user) &
+                (database.Contract.contract_status == database.ContractStatus.OPEN)
+            )
+        )
+        contract: database.Contract = contract.scalars().first()
+        if not contract:
+            response.status_code = 404
+            return {"detail": "Contract not found or not open"}
+
+        # modify the contract to set the new values
+        contract.base_price = new_base_price
+        contract.t1_bonus = new_t1_incentive
+        contract.t2_bonus = new_t2_incentive
+        contract.contract_timeout = datetime.strptime(new_timeout, "%Y-%m-%dT%H:%M:%S")
+        contract.contract_title = new_title
+        contract.contract_desc = new_desc
+
+        # commit entry back to database
+        session.add(contract)
+        await session.commit()
+
+    return {"detail": "Contract updated successfully"}
 
 @router.post("/{contract_id}/delete-contract", tags=["Contracts", "Proposer"])
 async def delete_contract(
     contract_id: int,
-    request: Request, 
-    response: Response, 
+    request: Request,
+    response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)):
     '''
     Deletes an existing contract.
     ONLY WORKS IF CONTRACT STATUS IS OPEN.
-    NOT YET IMPLEMENTED
+    ONLY WORKS IF USER IS PROPOSER.
     '''
-    return
+    user = auth.get_current_user(request)['sub']
+    async with database.AsyncSessionLocalFactory() as session:
+        contract = await session.execute(
+            select(database.Contract).where(
+                (database.Contract.contract_id == contract_id) &
+                (database.Contract.proposer_id == user) &
+                (database.Contract.contract_status == database.ContractStatus.OPEN)
+            )
+        )
+        contract: database.Contract = contract.scalars().first()
+        if not contract:
+            response.status_code = 404
+            return {"detail": "Contract not found or not open"}
 
+        # delete the contract
+        await session.delete(contract)
+        await session.commit()
+    return {"detail": "Contract deleted successfully"}
 
 @router.post("/{contract_id}/accept-contract", tags=["Contracts", "Courier"])
-async def create_contract_bid(
+async def accept_contract(
     contract_id: int,
-    base_price: int,
-    incentives: str,
     sensorid: int,
-    request: Request, 
-    response: Response, 
+    request: Request,
+    response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)
     ):
     '''
-    Creates a new contract bid and places it on the specified contract id.
-    Requires sensor id to be specified.
+    API for when a Courier accepts a contract.
+    Requires Sensor to be specified.
     Only works if contract status is open.
-    Incentives should be formatted as INT-INT-INT-INT.
+    Locks in actual contract with the XRP network.
     '''
+
     user = auth.get_current_user(request)['sub']
+
+    # TODO: XRP INTEGRATION HERE - NEED TO CREATE ESCROWS.
+    TESTING_base_lock = "0x0"
+    TESTING_t1_lock = "0x0"
+    TESTING_t2_lock = "0x0"
+    TESTING_collateral_lock = "0x0"
+    TESTING_base_key = "0x0"
+    TESTING_t1_key = "0x0"
+    TESTING_t2_key = "0x0"
+    TESTING_collateral_key = "0x0"
+
     async with database.AsyncSessionLocalFactory() as session:
         contract = await session.execute(
             select(database.Contract).where(
@@ -269,17 +345,32 @@ async def create_contract_bid(
             response.status_code = 404
             return {"detail": "Contract not found or not open"}
 
-        new_bid = database.Bid(
-            bidderID=user,
-            contractID=contract_id,
-            bidFloorPrice=base_price,
-            incentives=incentives,
-            bidStatus=database.BidStatus.OPEN,
-            sensorID = str(sensorid), 
-            #TODO: validation needs to happen that the sensor belongs to the user but skip for now
-            bidTime=datetime.now()
-        )
-        session.add(new_bid)
+        # modify the contract to set the courier, sensor, and status
+        contract.courier_id = user
+        contract.sensor_id = sensorid
+        contract.contract_status = database.ContractStatus.FULFILLMENT
+        contract.contract_award_time = datetime.now(timezone.utc)
+
+        # set the locks and keys in the database
+        contract.base_lock = TESTING_base_lock
+        contract.t1_lock = TESTING_t1_lock
+        contract.t2_lock = TESTING_t2_lock
+        contract.collateral_lock = TESTING_collateral_lock
+        contract.base_key = TESTING_base_key
+        contract.t1_key = TESTING_t1_key
+        contract.t2_key = TESTING_t2_key
+        contract.collateral_key = TESTING_collateral_key
+
+        # commit entry back to database
+        session.add(contract)
         await session.commit()
-        await session.refresh(new_bid)
-    return {"bidID": new_bid.bidID, "contractID": new_bid.contractID}
+        await session.refresh(contract)
+
+        # return the contract id and the updated fields
+        return ({
+            "contract_id": contract.contract_id,
+            "courier_id": contract.courier_id,
+            "sensor_id": contract.sensor_id,
+            "contract_status": contract.contract_status,
+            "contract_award_time": contract.contract_award_time,
+        })
