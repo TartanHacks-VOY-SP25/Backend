@@ -570,12 +570,18 @@ async def complete_contract(
             )
 
         # Wipes the sensor data entry
-
+        sensor_data.drop_alerts = 0
+        sensor_data.overtemp_alerts = 0
+        sensor_data.water_events = 0
+        sensor_data.longitude = 0
+        sensor_data.latitude = 0
 
         # commit entry back to database
         session.add(contract)
+        session.add(sensor_data)
         await session.commit()
         await session.refresh(contract)
+        
 
     # return the contract id and the updated fields
     return ({
