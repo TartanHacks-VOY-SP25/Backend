@@ -25,7 +25,7 @@ COPY . .
 
 # Install project dependencies
 RUN python3 -m pip install -r requirements.txt
-
+EXPOSE 8000
 
 # Run the web service on container startup.
 CMD ["hypercorn", "main:app", "--bind", "::"]

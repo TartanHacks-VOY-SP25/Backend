@@ -16,9 +16,9 @@ router = APIRouter()
 @router.post("/register_sensor", tags=["Sensor"])
 async def register_sensor(
     sensor: str, 
-    _user: None=Depends(auth.get_current_user), 
-    _auth: None=Depends(auth.check_and_renew_access_token)
-    ):
+    _user: None = Depends(auth.get_current_user), 
+    _auth: None = Depends(auth.check_and_renew_access_token)
+):
     async with database.AsyncSessionLocalFactory() as session:
         new_sensor = database.Sensor(
             sensor_id=sensor,
@@ -32,33 +32,58 @@ async def register_sensor(
     return {'registered_sensor_id': sensor, 'registered_owner': _user['sub']}
 
 
-
-
-class SensorData(BaseModel):
-    uid: str
-    fall: str
-    temp: str
-    hum: str
+# Define a Pydantic model matching the sensor's POST payload.
+class SensorPayload(BaseModel):
+    uid: int       # sensor identifier (will be converted to string)
+    long: float    # longitude
+    lat: float     # latitude
+    fall: int      # fall (drop) events
+    temp: int      # temperature events
+    hum: int       # water/humidity events
 
 @router.post("/sensor_data", tags=["Sensor"])
-async def sensor_data(data: SensorData, request: Request):
-    async with database.AsyncSessionLocalFactory() as session:
-        # just format the data and upload, no authentication needed.
-        sensor_data = database.SensorData(
-            sensor_id=data.uid,
-            timestamp=datetime.now(),
-            drop_alerts=int(data.fall),
-            overtemp_alerts=int(data.temp),
-            water_events=int(data.hum),
-        )
-        try:
-            session.add(sensor_data)
-            await session.commit()
-            await session.refresh(sensor_data)
-        except Exception:
-            raise HTTPException(status_code=400, detail="Unknown error occurred.")
+async def sensor_data(payload: SensorPayload):
+    sensor_id_str = str(payload.uid)
     
-    return {"status": "success"}
+    async with database.AsyncSessionLocalFactory() as session:
+        # Check if the sensor is registered in user_sensors.
+        result = await session.execute(
+            select(database.Sensor).filter_by(sensor_id=sensor_id_str)
+        )
+        user_sensor_record = result.scalar_one_or_none()
 
-        # write the sensor data into the database, and gracefully handle and report any errors 
+        if not user_sensor_record:
+            raise HTTPException(status_code=400, detail="Sensor not registered. Please call register_sensor first.")
+
+        # Next, try to retrieve an existing sensor_data record.
+        result = await session.execute(
+            select(database.SensorData).filter_by(sensor_id=sensor_id_str)
+        )
+        sensor_data_record = result.scalar_one_or_none()
+
+        if sensor_data_record:
+            # Sensor data exists: update its counters and location.
+            sensor_data_record.drop_alerts += payload.fall
+            sensor_data_record.overtemp_alerts += payload.temp
+            sensor_data_record.water_events += payload.hum
+            sensor_data_record.longitude = payload.long
+            sensor_data_record.latitude = payload.lat
+        else:
+            # Sensor data does not exist; create a new record.
+            new_sensor_data = database.SensorData(
+                sensor_id=sensor_id_str,
+                drop_alerts=payload.fall,
+                overtemp_alerts=payload.temp,
+                water_events=payload.hum,
+                longitude=payload.long,
+                latitude=payload.lat,
+            )
+            session.add(new_sensor_data)
+
+        try:
+            await session.commit()
+        except Exception as e:
+            await session.rollback()
+            raise HTTPException(status_code=400, detail=f"Error updating sensor data: {str(e)}")
         
+    return {"status": "success", "sensor_id": sensor_id_str}
