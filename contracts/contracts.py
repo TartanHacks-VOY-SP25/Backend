@@ -320,7 +320,7 @@ async def delete_contract(
 @router.post("/{contract_id}/accept-contract", tags=["Contracts", "Courier"])
 async def accept_contract(
     contract_id: int,
-    sensorid: int,
+    sensorid: str,
     request: Request,
     response: Response,
     _auth: None=Depends(auth.check_and_renew_access_token)
@@ -352,13 +352,40 @@ async def accept_contract(
             )
         )
         contract: database.Contract = contract.scalars().first()
+
+        sensor = await session.execute(
+            select(database.Sensor).where(
+                database.Sensor.sensor_id == sensorid,
+                database.Sensor.owner_id == user
+            )
+        )
+        sensor: database.Sensor = sensor.scalars().first()
+
+        sensor_in_use = await session.execute(
+            select(database.Contract).where(
+                database.Contract.sensor_id == sensorid,
+                database.Contract.contract_status != database.ContractStatus.COMPLETED.value
+            )
+        )
+        sensor_in_use: database.Contract = sensor_in_use.scalars().first()
+        
         if not contract:
             response.status_code = 404
-            return {"detail": "Contract not found or not open"}
+            return {"detail": "Contract not found or not open."}
+        
+        if not sensor:
+            response.status_code = 404
+            return {"detail": "Sensor not found or not owned by user."}
+        
+        if sensor_in_use:
+            response.status_code = 404
+            return {"detail": "Sensor currently in use for other contract."}
+
+        sensor: database.Sensor = sensor.scalars().first()
 
         # modify the contract to set the courier, sensor, and status
         contract.courier_id = user
-        contract.sensor_id = str(sensorid)
+        contract.sensor_id = sensor.sensor_id
         contract.contract_status = database.ContractStatus.FULFILLMENT.value
         contract.contract_award_time = datetime.now(timezone.utc)
 
@@ -461,6 +488,5 @@ async def complete_contract(
 
 
 
-# TODO: functionality to complete a contract
 # TODO: functionality to mark a contract as failed
 # TODO: functionality to delete a contract that is in fulfillment and return funds to both parties only if both parties agree
