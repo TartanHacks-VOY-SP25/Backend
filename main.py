@@ -13,6 +13,7 @@ origins = [
 ]
 
 app = FastAPI()
+app.include_router(sensor_router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     python3 \
     python3-pip \
-    libgtk-3.0-dev \
+    libgtk-3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy local code to the container image.
@@ -25,7 +25,7 @@ COPY . .
 
 # Install project dependencies
 RUN python3 -m pip install -r requirements.txt
-
+EXPOSE 8000
 
 # Run the web service on container startup.
 CMD ["hypercorn", "main:app", "--bind", "::"]

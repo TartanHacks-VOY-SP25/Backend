@@ -43,7 +43,8 @@ class SensorData(Base):
     drop_alerts     = Column(Integer, nullable=False, index=True)
     overtemp_alerts = Column(Integer, nullable=False, index=True)
     water_events    = Column(Integer, nullable=False, index=True)
-
+    longitude       = Column(Float, nullable=False, index=True)
+    latitude        = Column(Float, nullable=False, index=True)
 
 class ContractStatus(enum.Enum):
     """
