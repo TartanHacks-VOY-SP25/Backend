@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 from database import database
 from jose import JWTError, jwt
 from typing import List
-from xrpledger.smart_contracts import create_account
+import xrpledger.smart_contracts as xrp
 
 # Constants
 # TODO: REPLACE WITH ENV VARS
@@ -115,9 +115,9 @@ async def register(username: str, password: str):
             raise HTTPException(status_code=400, detail="User already exists")
         else:
             # TODO: XRP INTEGRATION HERE
-            xrp_wallet = await create_account.create_account()
-            xrp_acc_num  = xrp_wallet.seed
-            xrp_acc_addr = xrp_wallet.address
+            xrp_wallet = await xrp.create_account()
+            xrp_acc_num  = xrp_wallet[0]
+            xrp_acc_addr = xrp_wallet[1]
             new_user = database.User(
                 user_id=username,
                 hashed_password=hash_password(password),
@@ -129,7 +129,7 @@ async def register(username: str, password: str):
     return {
         "message": "User registered successfully",
         "XRP Wallet Address": xrp_acc_addr,
-        "XRP Seed (ONLY AVAILABLE ONCE)": xrp_acc_num
+        "XRP Account Seed (Only available once)": xrp_acc_num
     }
 
 

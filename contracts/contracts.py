@@ -6,6 +6,7 @@ from sqlalchemy import DateTime
 from datetime import datetime, timezone
 import pytz
 from typing import List
+import xrpledger.smart_contracts as xrp
 
 router = APIRouter()
 
@@ -335,6 +336,7 @@ async def accept_contract(
     user = auth.get_current_user(request)['sub']
 
     # TODO: XRP INTEGRATION HERE - NEED TO CREATE ESCROWS.
+    [sequences, conditions, fulfillments] = create_contract(,, )
     TESTING_base_lock = "0x0"
     TESTING_t1_lock = "0x0"
     TESTING_t2_lock = "0x0"
@@ -369,6 +371,20 @@ async def accept_contract(
         )
         sensor_in_use: database.Contract = sensor_in_use.scalars().first()
         
+        courier_num = await session.execute(
+            select(database.Contract.courier_id).where(
+                database.Contract.contract_id == contract_id,
+                database.Contract.contract_status == database.ContractStatus.OPEN.value
+            )
+        )
+
+        proposer_num = await session.execute(
+            select(database.Contract.proposer_id).where(
+                database.Contract.contract_id == contract_id,
+                database.Contract.contract_status == database.ContractStatus.OPEN.value
+            )
+        )
+
         if not contract:
             response.status_code = 404
             return {"detail": "Contract not found or not open."}
@@ -382,6 +398,10 @@ async def accept_contract(
             return {"detail": "Sensor currently in use for other contract."}
 
         sensor: database.Sensor = sensor.scalars().first()
+
+
+
+
 
         # modify the contract to set the courier, sensor, and status
         contract.courier_id = user

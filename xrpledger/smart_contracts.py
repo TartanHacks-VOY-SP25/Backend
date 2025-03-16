@@ -1,5 +1,5 @@
 from xrpl.clients import JsonRpcClient
-from xrpl.wallet import generate_faucet_wallet
+from xrpl.asyncio.wallet import generate_faucet_wallet as async_generate_faucet_wallet
 from xrpl.models import EscrowFinish
 from xrpl.transaction import submit_and_wait
 from xrpl.wallet import Wallet
@@ -13,11 +13,11 @@ from xrpl.models import EscrowCancel
 from xrpl.transaction import submit_and_wait
 from xrpl.account import get_balance
 
-def create_account():
+async def create_account():
     JSON_RPC_URL = "https://s.altnet.rippletest.net:51234/"
     client = JsonRpcClient(JSON_RPC_URL)
 
-    new_wallet = generate_faucet_wallet(client, debug=True)
+    new_wallet = await async_generate_faucet_wallet(client, debug=True)
 
     account_addr = new_wallet.address
     account_num = new_wallet.seed
