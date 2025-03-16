@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 from database import database
 from jose import JWTError, jwt
 from typing import List
-from xrpledger import create_account
+from xrpledger.smart_contracts import create_account
 
 # Constants
 # TODO: REPLACE WITH ENV VARS

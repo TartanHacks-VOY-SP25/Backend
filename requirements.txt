@@ -54,3 +54,14 @@ uvicorn==0.34.0
 uvloop==0.21.0
 watchfiles==1.0.4
 websockets==14.2
+base58==2.1.0
+cryptoconditions==0.8.1
+Deprecated==1.2.18
+ECPy==1.2.5
+pycryptodome==3.21.0
+PyNaCl==1.4.0
+toml==0.10.2
+types-Deprecated==1.2.15.20241117
+wrapt==1.17.2
+wxPython==4.2.2
+xrpl-py==4.0.0
