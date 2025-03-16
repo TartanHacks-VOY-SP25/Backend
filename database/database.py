@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, Float
+from sqlalchemy import Column, Integer, String, ForeignKey, Float, TIMESTAMP
 import enum
 
 # TODO: REPLACE WITH REAL ENV VARS
@@ -73,11 +73,11 @@ class Contract(Base):
     )
 
     # Timestamps and status
-    contract_award_time         = Column(DateTime, nullable=True, index=True)
-    contract_completion_time    = Column(DateTime, nullable=True, index=True)
-    contract_confirm_completion = Column(DateTime, nullable=True, index=True)
-    contract_timeout            = Column(DateTime, index=True)
-    contract_status             = Column(Enum(ContractStatus), nullable=False, index=True)
+    contract_award_time         = Column(TIMESTAMP(timezone=True), nullable=True, index=True)
+    contract_completion_time    = Column(TIMESTAMP(timezone=True), nullable=True, index=True)
+    contract_confirm_completion = Column(TIMESTAMP(timezone=True), nullable=True, index=True)
+    contract_timeout            = Column(TIMESTAMP(timezone=True), index=True)
+    contract_status             = Column(String, nullable=False, index=True)
 
     # Financial details
     required_collateral     = Column(Float, nullable=False)
@@ -101,8 +101,8 @@ class Contract(Base):
     )
 
     # Contract details
-    contract_title  = Column(String, nullable=False)
-    contract_desc   = Column(String, nullable=False)
+    contract_title         = Column(String, nullable=False)
+    contract_description   = Column(String, nullable=False)
 
 
 # Create async engine

@@ -3,9 +3,9 @@ from auth import auth
 from database import database
 from sqlalchemy.future import select
 from sqlalchemy import DateTime
+from datetime import datetime, timezone
+import pytz
 from typing import List
-from datetime import datetime
-from datetime import timezone
 
 router = APIRouter()
 
@@ -22,14 +22,14 @@ async def get_open_contracts(
     async with database.AsyncSessionLocalFactory() as session:
         open_contracts = await session.execute(
             select(database.Contract).where(
-                database.Contract.contract_status == database.ContractStatus.OPEN
+                database.Contract.contract_status == database.ContractStatus.OPEN.value
             )
         )
 
     open_contracts:List[database.Contract] = open_contracts.scalars().all()
     compact_contracts = [
         {
-            "contractID": contract.contract_id,
+            "contract_id": contract.contract_id,
             "title": contract.contract_title,
         } for contract in open_contracts
     ]
@@ -69,8 +69,8 @@ async def get_my_contracts(
 
     compact_contracts = [
         {
-            "contractID": contract.contractID,
-            "title": contract.title,
+            "contractID": contract.contract_id,
+            "title": contract.contract_title,
         } for contract in user_contracts
     ]
     return compact_contracts
@@ -89,13 +89,13 @@ async def get_my_contract_requests(
     async with database.AsyncSessionLocalFactory() as session:
         user_contracts = await session.execute(
             select(database.Contract).where(
-                (database.Contract.proposerID == user)
+                (database.Contract.proposer_id == user)
             )
         )
     user_contracts:List[database.Contract] = user_contracts.scalars().all()
     compact_contracts = [
         {
-            "contractID": contract.contract_id,
+            "contract_id": contract.contract_id,
             "title": contract.contract_title,
         } for contract in user_contracts
     ]
@@ -123,8 +123,8 @@ async def get_my_contract_deliveries(
 
         compact_bids = [
             {
-            "contractID": contract.contractID,
-            "title": contract.title,
+            "contract_id": contract.contract_id,
+            "title": contract.contract_title,
             } for contract in user_deliveries
         ]
     return compact_bids
@@ -153,6 +153,9 @@ async def create_contract(
             required_completion_time,
             "%Y-%m-%dT%H:%M:%S"
         )
+        required_completion_time = required_completion_time.replace(
+            tzinfo=pytz.utc
+        ) # Set timezone to UTC
 
         new_contract = database.Contract(
             proposer_id                 =   user,
@@ -161,7 +164,7 @@ async def create_contract(
             contract_completion_time    =   None,
             contract_confirm_completion =   None,
             contract_timeout            =   required_completion_time,
-            contract_status             =   database.ContractStatus.OPEN,
+            contract_status             =   database.ContractStatus.OPEN.value,
             required_collateral         =   collateral,
             base_price                  =   base_price,
             t1_bonus                    =   t1_incentive,
@@ -176,12 +179,12 @@ async def create_contract(
             collateral_key              =   None,
             sensor_id                   =   None,
             contract_title              =   title,
-            contract_desc               =   desc,
+            contract_description        =   desc,
         )
         session.add(new_contract)
         await session.commit()
         await session.refresh(new_contract)
-    return {"contractID": new_contract.contractID, "title": new_contract.title}
+    return {"contract_id": new_contract.contract_id, "title": new_contract.contract_title}
 
 @router.get("/{contract_id}", tags=["Contracts", "Proposer", "Courier"])
 async def get_contract(
@@ -195,13 +198,14 @@ async def get_contract(
     Contract has to be open, or the user has to be the proposer / courier.
     '''
     user = auth.get_current_user(request)['sub']
+    print(f"User: {user}")
     async with database.AsyncSessionLocalFactory() as session:
         contract = await session.execute(
             select(database.Contract).where(
                 (database.Contract.contract_id == contract_id) &
                 (
                     (
-                        database.Contract.contract_status == database.ContractStatus.OPEN
+                        database.Contract.contract_status == database.ContractStatus.OPEN.value
                     ) | (
                         (database.Contract.proposer_id == user) |
                         (database.Contract.courier_id == user)
@@ -221,13 +225,13 @@ async def get_contract(
             "contract_award_time": contract.contract_award_time,
             "contract_completion_time": contract.contract_completion_time,
             "contract_timeout": contract.contract_timeout,
-            "contractStatus": contract.contractStatus,
+            "contractStatus": contract.contract_status,
             "required_collateral": contract.required_collateral,
             "base_price": contract.base_price,
             "t1_bonus": contract.t1_bonus,
             "t2_bonus": contract.t2_bonus,
-            "title": contract.title,
-            "description": contract.description,
+            "title": contract.contract_title,
+            "description": contract.contract_description,
         }
         return retstruct
 
@@ -250,12 +254,17 @@ async def update_contract(
     '''
 
     user = auth.get_current_user(request)['sub']
+    dt = datetime.strptime(
+        new_timeout,
+        "%Y-%m-%dT%H:%M:%S"
+    )
+    dt = dt.replace(tzinfo=pytz.utc) 
     async with database.AsyncSessionLocalFactory() as session:
         contract = await session.execute(
             select(database.Contract).where(
                 (database.Contract.contract_id == contract_id) &
                 (database.Contract.proposer_id == user) &
-                (database.Contract.contract_status == database.ContractStatus.OPEN)
+                (database.Contract.contract_status == database.ContractStatus.OPEN.value)
             )
         )
         contract: database.Contract = contract.scalars().first()
@@ -267,9 +276,10 @@ async def update_contract(
         contract.base_price = new_base_price
         contract.t1_bonus = new_t1_incentive
         contract.t2_bonus = new_t2_incentive
-        contract.contract_timeout = datetime.strptime(new_timeout, "%Y-%m-%dT%H:%M:%S")
+
+        contract.contract_timeout = dt
         contract.contract_title = new_title
-        contract.contract_desc = new_desc
+        contract.contract_description = new_desc
 
         # commit entry back to database
         session.add(contract)
@@ -294,7 +304,7 @@ async def delete_contract(
             select(database.Contract).where(
                 (database.Contract.contract_id == contract_id) &
                 (database.Contract.proposer_id == user) &
-                (database.Contract.contract_status == database.ContractStatus.OPEN)
+                (database.Contract.contract_status == database.ContractStatus.OPEN.value)
             )
         )
         contract: database.Contract = contract.scalars().first()
@@ -337,8 +347,8 @@ async def accept_contract(
     async with database.AsyncSessionLocalFactory() as session:
         contract = await session.execute(
             select(database.Contract).where(
-                database.Contract.contractID == contract_id,
-                database.Contract.contractStatus == database.ContractStatus.OPEN
+                database.Contract.contract_id == contract_id,
+                database.Contract.contract_status == database.ContractStatus.OPEN.value
             )
         )
         contract: database.Contract = contract.scalars().first()
@@ -348,8 +358,8 @@ async def accept_contract(
 
         # modify the contract to set the courier, sensor, and status
         contract.courier_id = user
-        contract.sensor_id = sensorid
-        contract.contract_status = database.ContractStatus.FULFILLMENT
+        contract.sensor_id = str(sensorid)
+        contract.contract_status = database.ContractStatus.FULFILLMENT.value
         contract.contract_award_time = datetime.now(timezone.utc)
 
         # set the locks and keys in the database
@@ -394,7 +404,7 @@ async def complete_contract(
         contract = await session.execute(
             select(database.Contract).where(
                 (database.Contract.contract_id == contract_id) &
-                (database.Contract.contract_status == database.ContractStatus.FULFILLMENT)
+                (database.Contract.contract_status == database.ContractStatus.FULFILLMENT.value)
             )
         )
         contract: database.Contract = contract.scalars().first()
@@ -428,7 +438,7 @@ async def complete_contract(
         # if the user is the proposer and the courier has already marked the contract as completed
         # proposer is confirming the completion
         contract.contract_confirm_completion = datetime.now(timezone.utc)
-        contract.contract_status = database.ContractStatus.COMPLETED
+        contract.contract_status = database.ContractStatus.COMPLETED.value
 
         # TODO: XRP INTEGRATION HERE.
         # 1. Query the sensor table in the db to calculate the delivery score

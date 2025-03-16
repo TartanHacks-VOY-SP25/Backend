@@ -21,8 +21,8 @@ async def register_sensor(
     ):
     async with database.AsyncSessionLocalFactory() as session:
         new_sensor = database.Sensor(
-            sensorID=sensor,
-            ownerID=_user['sub'],
+            sensor_id=sensor,
+            owner_id=_user['sub'],
         )
         session.add(new_sensor)
         try:
@@ -45,7 +45,7 @@ async def sensor_data(data: SensorData, request: Request):
     async with database.AsyncSessionLocalFactory() as session:
         # just format the data and upload, no authentication needed.
         sensor_data = database.SensorData(
-            sensorID=data.uid,
+            sensor_id=data.uid,
             timestamp=datetime.now(),
             drop_alerts=int(data.fall),
             overtemp_alerts=int(data.temp),
