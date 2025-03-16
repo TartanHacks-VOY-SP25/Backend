@@ -24,9 +24,12 @@ async def create_account():
 
 async def finish_contract(sequences : list, conditions : list, fulfillments : list, source_acc_num : str, num_contracts : int):
     client = JsonRpcClient("https://s.altnet.rippletest.net:51234")
+    '''
+    If num_contracts == 0, it means that we are cancelling the collateral because the courier 
+    '''
 
     for idx in range(num_contracts):
-        sequence = sequences[idx]
+        sequence = int(sequences[idx])
         condition = conditions[idx] 
         fulfillment = fulfillments[idx]
 
@@ -80,7 +83,7 @@ async def create_escrow(source_acc_num: str, dest_acc_num : str, payment_amt : l
 
     return [sequences, conditions, fulfillments]
 
-async def delete_escrow(source_acc_num: str, sequence : str):
+async def delete_escrow(source_acc_num: str, sequence: int):
     client = JsonRpcClient("https://s.altnet.rippletest.net:51234") # Connect to client
 
     sender_wallet = Wallet.from_seed(seed=source_acc_num, algorithm=CryptoAlgorithm.ED25519)
@@ -90,8 +93,8 @@ async def delete_escrow(source_acc_num: str, sequence : str):
 
     stxn_response = await async_submit_and_wait(cancel_txn, client, sender_wallet)
 
-async def check_balance(account_addr : int):
+async def check_balance(account_addr : str):
     client = JsonRpcClient("https://s.altnet.rippletest.net:51234")
-    return async_get_balance(address=account_addr, client=client, ledger_index="validated")
+    return await async_get_balance(address=account_addr, client=client, ledger_index="validated")
 
 

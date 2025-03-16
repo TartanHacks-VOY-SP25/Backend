@@ -12,6 +12,7 @@ from database import database
 from jose import JWTError, jwt
 from typing import List
 import xrpledger.smart_contracts as xrp
+from database import database
 
 # Constants
 # TODO: REPLACE WITH ENV VARS
@@ -193,6 +194,20 @@ async def get_me(request: Request, response: Response):
     print(f"Request URL: {request.url}")
 
     check_and_renew_access_token(request, response)
-    user = get_current_user(request)
-    print(user)
-    return {"username": user["sub"]}
+    user = get_current_user(request)["sub"]
+    async with database.AsyncSessionLocalFactory() as session:
+        user_details = await session.execute(
+            select(database.User).where(
+                database.User.user_id == user
+            )
+        )
+        user_entry:database.User = user_details.scalars().first()
+        balance = await xrp.check_balance(
+            user_entry.wallet_address
+        )
+        print(balance)
+
+        return {
+            "username": user,
+            "account_balance": balance
+        }

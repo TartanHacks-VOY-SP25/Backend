@@ -396,6 +396,12 @@ async def accept_contract(
         )
         courier_details: database.User = courier_details.scalars().first()
 
+        print(f"courier wallet num:{courier_details.wallet_number}")
+        print(f"courier wallet addr:{courier_details.wallet_address}")
+        print(f"proposer wallet num:{proposer_details.wallet_number}")
+        print(f"proposer wallet addr:{proposer_details.wallet_address}")
+
+
         [sequences, conditions, fulfillments] = await xrp.create_escrow(
             proposer_details.wallet_number, 
             courier_details.wallet_address, 
@@ -475,6 +481,8 @@ async def complete_contract(
         if contract.courier_id == user and contract.contract_completion_time is None:
             # Courier is the first user to mark the contract as completed
             contract.contract_completion_time = datetime.now(timezone.utc)
+            session.add(contract)
+            await session.commit()
             return {'detail': "Courier has marked contract as completed, waiting for proposer to confirm"}
 
         # if the user is the courier and the contract is already completed, error
@@ -492,9 +500,45 @@ async def complete_contract(
         contract.contract_confirm_completion = datetime.now(timezone.utc)
         contract.contract_status = database.ContractStatus.COMPLETED.value
 
+        # get xrp details for proposer and courier
+        proposer_details = await session.execute(
+            select(database.User).where(
+                database.User.user_id == user
+            )
+        )
+        proposer_details: database.User = proposer_details.scalars().first()
+
+        courier_details = await session.execute(
+            select(database.User).where(
+                database.User.user_id == contract.courier_id
+            )
+        )
+        courier_details: database.User = courier_details.scalars().first()
+
         # TODO: XRP INTEGRATION HERE.
         # 1. Query the sensor table in the db to calculate the delivery score
         # 2. Release the locks on the XRP network based on calculated delivery score 
+
+        #1,2,3 as last arg mean base, t1 incentive, t2 incentive respectively
+        await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
+                        [contract.base_lock, contract.t1_lock, contract.t2_lock],
+                        [contract.base_key, contract.t1_key, contract.t2_key], 
+                        proposer_details.wallet_number, 
+                        2)
+
+        # 0 means return collateral to the courier, 1 means give the courier's collateral to the proposer
+        collateral_status = 0
+        if(collateral_status):
+            await xrp.finish_contract([contract.collateral_txn_id],
+                            [contract.collateral_lock],
+                            [contract.collateral_key], 
+                            courier_details.wallet_number, 
+                            1)
+        else:
+            await xrp.delete_escrow(
+                courier_details.wallet_number,
+                int(contract.collateral_txn_id)
+            )
 
         # commit entry back to database
         session.add(contract)
