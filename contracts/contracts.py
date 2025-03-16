@@ -532,14 +532,15 @@ async def complete_contract(
         
         # 0 means return collateral to the courier, 1 means give the courier's collateral to the proposer
         collateral_status = 0
-        if sensor_data.drop_alerts <= 2:
+        if (sensor_data.drop_alerts <= 2):
+            # great performance, 
             await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
                             [contract.base_lock, contract.t1_lock, contract.t2_lock],
                             [contract.base_key, contract.t1_key, contract.t2_key], 
                             proposer_details.wallet_number, 
                             3)
         elif (2 < sensor_data.drop_alerts <= 4):
-            # lose tier 2
+            # lose tier 2, only get tier 1 and base
             await xrp.finish_contract([contract.base_txn_id, contract.t1_txn_id, contract.t2_txn_id],
                             [contract.base_lock, contract.t1_lock, contract.t2_lock],
                             [contract.base_key, contract.t1_key, contract.t2_key], 
@@ -553,7 +554,7 @@ async def complete_contract(
                             proposer_details.wallet_number, 
                             1)
         elif (6 < sensor_data.drop_alerts):
-            # lose collateral
+            # lose collateral if too many drops
             collateral_status = 1
 
         if(collateral_status):
