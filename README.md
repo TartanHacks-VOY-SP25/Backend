@@ -21,7 +21,7 @@ This may take some time
 6. Copy the entire contents of the `./database/database.psql` file into the psql shell that you just opened, and hit enter. 
 This will setup the development postgres db.
 7. From within your Vscode instance, open the integrated terminal.
-8. Run `fastapi run` (or `fastapi dev` if you need hot reload). This will start the backend fastapi service.
+8. Run `uvicorn main:app --host 0.0.0.0 --port 8000`. This will start the backend fastapi service.
 9. You can now view the api docs at `localhost:8000/docs`.
 10. Next steps are now to start the frontend service and use the application. Instructions for bringing up the frontend service are in the frontend repository.
 
